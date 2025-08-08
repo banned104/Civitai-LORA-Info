@@ -107,13 +107,13 @@ async function exportAllModels() {
             @click="exportAllModels"
             class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition text-sm font-medium"
           >
-            � 批量导出 ZIP
+            批量导出 ZIP
           </button>
           <button
             @click="clearAllModels"
             class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition text-sm font-medium"
           >
-            �️ 清空所有
+            清空所有
           </button>
         </div>
       </div>
