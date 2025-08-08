@@ -1,224 +1,140 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, computed } from 'vue';
 import { getLoraModelInfo } from './info_getter';
-import type { LoraModel, LoraModelVersion } from './lora_api_types';
-import ImageCarousel from './ImageCarousel.vue';
+import type { LoraModel } from './lora_api_types';
+import ModelUrlInput from './ModelUrlInput.vue';
+import ModelCard from './ModelCard.vue';
 import { MarkdownExporter } from './markdown_exporter';
 
-const modelUrl = ref("https://civitai.com/models/1843641/acenix-katthe-mayictor-style");
-const modelInfo = ref<LoraModel | null>(null);
-const selectedVersion = ref<LoraModelVersion | null>(null);
-const isLoading = ref(false);
+// 存储所有模型的数组
+const models = ref<LoraModel[]>([]);
 const error = ref<string | null>(null);
-const showMarkdownPreview = ref(false);
 
-// 计算生成的 Markdown 内容
-const markdownContent = computed(() => {
-  if (!modelInfo.value) return '';
-  return MarkdownExporter.exportModel(modelInfo.value, selectedVersion.value || undefined);
-});
+// 引用输入组件
+const inputComponent = ref<InstanceType<typeof ModelUrlInput>>();
+const modelCardRefs = ref<InstanceType<typeof ModelCard>[]>([]);
 
-// 生成文件名
-const generateFilename = computed(() => {
-  if (!modelInfo.value) return 'lora-model';
-  return `${modelInfo.value.name.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_')}_${modelInfo.value.id}`;
-});
+// 计算是否有模型
+const hasModels = computed(() => models.value.length > 0);
 
-async function fetchModelInfo() {
-  if (!modelUrl.value) {
-    error.value = "Please enter a URL.";
-    return;
-  }
-  isLoading.value = true;
+// 获取模型信息
+async function fetchModelInfo(modelUrl: string) {
+  inputComponent.value?.setLoading(true);
   error.value = null;
-  modelInfo.value = null;
-  selectedVersion.value = null;
-  showMarkdownPreview.value = false;
 
   try {
-    const data = await getLoraModelInfo(modelUrl.value);
+    const data = await getLoraModelInfo(modelUrl);
     if (data) {
-      modelInfo.value = data;
-      if (data.modelVersions.length > 0) {
-        selectedVersion.value = data.modelVersions[0];
+      // 检查是否已经存在相同的模型
+      const existingModel = models.value.find(model => model.id === data.id);
+      if (existingModel) {
+        error.value = `模型 "${data.name}" 已经存在于列表中`;
+      } else {
+        // 将新模型添加到数组开头
+        models.value.unshift(data);
       }
     } else {
-      error.value = "Failed to fetch model information. Check the console for details.";
+      error.value = "获取模型信息失败，请检查控制台获取详细信息";
     }
   } catch (e: any) {
-    error.value = e.message || "An unknown error occurred.";
+    error.value = e.message || "发生未知错误";
   } finally {
-    isLoading.value = false;
+    inputComponent.value?.setLoading(false);
   }
 }
 
-// Markdown 导出功能
-function downloadMarkdown() {
-  if (markdownContent.value) {
-    MarkdownExporter.downloadMarkdown(markdownContent.value, generateFilename.value);
+// 移除模型
+function removeModel(index: number) {
+  if (index >= 0 && index < models.value.length) {
+    models.value.splice(index, 1);
   }
 }
 
-async function copyMarkdownToClipboard() {
-  if (markdownContent.value) {
-    const success = await MarkdownExporter.copyToClipboard(markdownContent.value);
-    if (success) {
-      alert('已复制到剪贴板！');
-    } else {
-      alert('复制失败，请手动复制');
-    }
+// 清空所有模型
+function clearAllModels() {
+  if (confirm('确定要清空所有模型吗？')) {
+    models.value = [];
+    error.value = null;
   }
 }
 
-function toggleMarkdownPreview() {
-  showMarkdownPreview.value = !showMarkdownPreview.value;
-}
+// 批量导出所有模型的 Markdown
+async function exportAllModels() {
+  if (models.value.length === 0) {
+    alert('没有模型可以导出');
+    return;
+  }
 
-onMounted(fetchModelInfo);
+  try {
+    const exportData = models.value.map((model, index) => {
+      const cardRef = modelCardRefs.value[index];
+      return {
+        model,
+        filename: cardRef?.generateFilename || `model_${model.id}`,
+        content: cardRef?.markdownContent || MarkdownExporter.exportModel(model)
+      };
+    });
+
+    await MarkdownExporter.exportMultipleModels(exportData);
+  } catch (error) {
+    console.error('导出失败:', error);
+    alert('导出失败，请重试');
+  }
+}
 </script>
 
 <template>
-  <div class="w-full bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg shadow-xl p-6">
-    <!-- 输入区域 -->
-    <div class="flex flex-col lg:flex-row gap-4 mb-6">
-      <input
-        v-model="modelUrl"
-        @keyup.enter="fetchModelInfo"
-        type="text"
-        placeholder="Enter Civitai Model URL"
-        class="flex-grow p-3 border rounded-md bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
-      />
-      <button
-        @click="fetchModelInfo"
-        :disabled="isLoading"
-        class="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition text-base font-medium"
-      >
-        {{ isLoading ? 'Loading...' : 'Get Info' }}
-      </button>
-    </div>
-
+  <div class="space-y-6">
+    <!-- 输入组件 -->
+    <ModelUrlInput 
+      ref="inputComponent"
+      @fetch-model="fetchModelInfo" 
+    />
+    
     <!-- 错误提示 -->
-    <div v-if="error" class="p-4 mb-6 text-sm text-red-800 rounded-lg bg-red-50 dark:bg-gray-800 dark:text-red-400" role="alert">
-      <span class="font-medium">Error!</span> {{ error }}
+    <div v-if="error" class="p-4 text-sm text-red-800 rounded-lg bg-red-50 dark:bg-gray-800 dark:text-red-400" role="alert">
+      <span class="font-medium">错误!</span> {{ error }}
     </div>
 
-    <!-- 加载状态 -->
-    <div v-if="isLoading" class="text-center p-12">
-      <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto"></div>
-      <p class="mt-4 text-lg">Fetching data...</p>
+    <!-- 批量操作区域 -->
+    <div v-if="hasModels" class="w-full bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg shadow-xl p-6">
+      <div class="flex flex-wrap gap-3 items-center justify-between">
+        <div class="flex items-center gap-3">
+          <span class="text-lg font-semibold">已获取 {{ models.length }} 个模型</span>
+        </div>
+        <div class="flex flex-wrap gap-3">
+          <button
+            @click="exportAllModels"
+            class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition text-sm font-medium"
+          >
+            � 批量导出 ZIP
+          </button>
+          <button
+            @click="clearAllModels"
+            class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition text-sm font-medium"
+          >
+            �️ 清空所有
+          </button>
+        </div>
+      </div>
     </div>
 
-    <!-- 主内容区域 -->
-    <div v-if="modelInfo && !isLoading && !error" class="space-y-6">
-      <!-- 操作按钮区域 -->
-      <div class="flex flex-wrap gap-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-        <button
-          @click="downloadMarkdown"
-          class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition text-sm font-medium"
-        >
-          📄 下载 Markdown
-        </button>
-        <button
-          @click="copyMarkdownToClipboard"
-          class="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition text-sm font-medium"
-        >
-          📋 复制 Markdown
-        </button>
-        <button
-          @click="toggleMarkdownPreview"
-          class="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition text-sm font-medium"
-        >
-          {{ showMarkdownPreview ? '👁️ 隐藏预览' : '👁️ 预览 Markdown' }}
-        </button>
-      </div>
+    <!-- 模型卡片列表 -->
+    <div v-if="hasModels" class="space-y-6">
+      <ModelCard
+        v-for="(model, index) in models"
+        :key="model.id"
+        ref="modelCardRefs"
+        :model-info="model"
+        :index="index"
+        @remove="removeModel"
+      />
+    </div>
 
-      <!-- Markdown 预览区域 -->
-      <div v-if="showMarkdownPreview" class="border rounded-lg overflow-hidden">
-        <div class="bg-gray-100 dark:bg-gray-800 px-4 py-2 border-b">
-          <h3 class="font-semibold text-sm">Markdown 预览</h3>
-        </div>
-        <div class="p-4 bg-gray-50 dark:bg-gray-900 max-h-96 overflow-y-auto">
-          <pre class="text-xs font-mono whitespace-pre-wrap">{{ markdownContent }}</pre>
-        </div>
-      </div>
-
-      <!-- 模型信息展示区域 -->
-      <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
-        <!-- 左侧：图片轮播 -->
-        <div class="space-y-4">
-          <h2 class="text-2xl font-bold text-gray-800 dark:text-gray-200">示例图片</h2>
-          <ImageCarousel v-if="selectedVersion" :images="selectedVersion.images" />
-        </div>
-
-        <!-- 右侧：模型详情 -->
-        <div class="space-y-6">
-          <div>
-            <h1 class="text-3xl lg:text-4xl font-bold mb-2">{{ modelInfo.name }}</h1>
-            <p class="text-lg text-gray-600 dark:text-gray-400">by {{ modelInfo.creator.username }}</p>
-            <p class="text-sm text-gray-500 dark:text-gray-500">ID: {{ modelInfo.id }}</p>
-          </div>
-
-          <!-- 版本选择器 -->
-          <div v-if="modelInfo.modelVersions.length > 1" class="space-y-2">
-            <label for="version-select" class="block text-sm font-medium text-gray-900 dark:text-white">选择版本:</label>
-            <select
-              id="version-select"
-              v-model="selectedVersion"
-              class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white"
-            >
-              <option v-for="version in modelInfo.modelVersions" :key="version.name" :value="version">
-                {{ version.name }}
-              </option>
-            </select>
-          </div>
-
-          <!-- 当前版本信息 -->
-          <div v-if="selectedVersion" class="space-y-6">
-            <!-- 描述 -->
-            <div class="space-y-2">
-              <h3 class="font-semibold text-lg">描述</h3>
-              <div 
-                v-if="modelInfo.description" 
-                class="text-gray-700 dark:text-gray-300 text-sm prose prose-sm dark:prose-invert max-w-none" 
-                v-html="modelInfo.description"
-              ></div>
-              <p v-else class="text-gray-500 text-sm">暂无描述</p>
-            </div>
-
-            <!-- 版本详情 -->
-            <div class="space-y-2">
-              <h3 class="font-semibold text-lg">版本详情</h3>
-              <div class="text-sm text-gray-600 dark:text-gray-400">
-                <p><strong>版本名称:</strong> {{ selectedVersion.name }}</p>
-                <p><strong>创建时间:</strong> {{ new Date(selectedVersion.createdAt).toLocaleString('zh-CN') }}</p>
-              </div>
-            </div>
-
-            <!-- 下载文件 -->
-            <div class="space-y-2">
-              <h3 class="font-semibold text-lg">下载文件</h3>
-              <div v-if="selectedVersion.files.length > 0" class="space-y-2">
-                <div 
-                  v-for="file in selectedVersion.files" 
-                  :key="file.name" 
-                  class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
-                >
-                  <span class="text-sm font-medium">{{ file.name }}</span>
-                  <a 
-                    :href="file.downloadUrl" 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    class="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition"
-                  >
-                    下载
-                  </a>
-                </div>
-              </div>
-              <p v-else class="text-gray-500 text-sm">暂无下载文件</p>
-            </div>
-          </div>
-        </div>
-      </div>
+    <!-- 空状态 -->
+    <div v-if="!hasModels" class="text-center p-12 bg-white dark:bg-gray-900 rounded-lg shadow-xl">
+      <p class="text-gray-500 text-lg">还没有获取任何模型信息</p>
+      <p class="text-gray-400 text-sm mt-2">请在上方输入 Civitai 模型 URL 开始获取</p>
     </div>
   </div>
 </template>

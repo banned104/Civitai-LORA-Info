@@ -138,4 +138,84 @@ export class MarkdownExporter {
       return false;
     }
   }
+
+  /**
+   * 批量导出多个模型为 ZIP 文件
+   */
+  static async exportMultipleModels(models: Array<{ model: LoraModel; filename: string; content: string }>): Promise<void> {
+    // 如果只有一个模型，直接下载单个文件
+    if (models.length === 1) {
+      this.downloadMarkdown(models[0].content, models[0].filename);
+      return;
+    }
+
+    // 动态导入 JSZip
+    const JSZip = await import('jszip');
+    const zip = new JSZip.default();
+
+    // 创建总览文件
+    const indexContent = this.generateIndexMarkdown(models.map(m => ({ 
+      name: m.model.name, 
+      filename: m.filename,
+      id: m.model.id,
+      creator: m.model.creator.username
+    })));
+    
+    zip.file('README.md', indexContent);
+
+    // 添加每个模型的 Markdown 文件
+    models.forEach(({ content, filename }) => {
+      zip.file(`${filename}.md`, content);
+    });
+
+    // 生成并下载 ZIP 文件
+    try {
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `lora_models_${new Date().toISOString().split('T')[0]}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('生成 ZIP 文件失败:', error);
+      alert('导出失败，请检查浏览器是否支持 ZIP 功能');
+    }
+  }
+
+  /**
+   * 生成总览 Markdown 文件
+   */
+  private static generateIndexMarkdown(models: Array<{ name: string; filename: string; id: number; creator: string }>): string {
+    const lines: string[] = [];
+    const currentDate = new Date().toLocaleString('zh-CN');
+    
+    lines.push('# LoRA 模型合集');
+    lines.push('');
+    lines.push(`**导出时间**: ${currentDate}`);
+    lines.push(`**模型数量**: ${models.length}`);
+    lines.push('');
+    
+    lines.push('## 模型列表');
+    lines.push('');
+    
+    models.forEach((model, index) => {
+      lines.push(`### ${index + 1}. ${model.name}`);
+      lines.push('');
+      lines.push(`- **作者**: ${model.creator}`);
+      lines.push(`- **模型 ID**: ${model.id}`);
+      lines.push(`- **详细信息**: [查看详情](${model.filename}.md)`);
+      lines.push('');
+    });
+    
+    lines.push('---');
+    lines.push('');
+    lines.push('*本文件由 LoRA 信息下载器自动生成*');
+    
+    return lines.join('\n');
+  }
 }
