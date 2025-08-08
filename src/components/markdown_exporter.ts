@@ -67,6 +67,16 @@ export class MarkdownExporter {
     lines.push(`**创建时间**: ${new Date(version.createdAt).toLocaleString('zh-CN')}`);
     lines.push('');
     
+    // 训练词
+    if (version.trainedWords && version.trainedWords.length > 0) {
+      lines.push('**训练词 (Trained Words)**:');
+      lines.push('');
+      version.trainedWords.forEach(word => {
+        lines.push(`- \`${word}\``);
+      });
+      lines.push('');
+    }
+    
     // 下载文件
     if (version.files.length > 0) {
       lines.push('**下载文件**:');
@@ -83,8 +93,35 @@ export class MarkdownExporter {
       lines.push('');
       version.images.forEach((image, index) => {
         lines.push(`![示例图片 ${index + 1}](${image.url})`);
+        
+        // 添加图片的元数据信息
+        if (image.meta) {
+          const meta = image.meta;
+          lines.push('');
+          lines.push('*图片参数:*');
+          
+          if (meta.prompt) {
+            lines.push(`- **正面提示词**: ${meta.prompt}`);
+          }
+          if (meta.negativePrompt) {
+            lines.push(`- **负面提示词**: ${meta.negativePrompt}`);
+          }
+          if (meta.sampler) {
+            lines.push(`- **采样器**: ${meta.sampler}`);
+          }
+          if (meta.steps) {
+            lines.push(`- **步数**: ${meta.steps}`);
+          }
+          if (meta.cfgScale) {
+            lines.push(`- **CFG Scale**: ${meta.cfgScale}`);
+          }
+          if (meta.seed) {
+            lines.push(`- **种子**: ${meta.seed}`);
+          }
+        }
+        
+        lines.push('');
       });
-      lines.push('');
     }
     
     return lines;

@@ -119,7 +119,11 @@ defineExpose({
       <!-- 左侧：图片轮播 -->
       <div class="space-y-4">
         <h2 class="text-xl font-bold text-gray-800 dark:text-gray-200">示例图片</h2>
-        <ImageCarousel v-if="selectedVersion" :images="selectedVersion.images" />
+        <ImageCarousel 
+          v-if="selectedVersion" 
+          :images="selectedVersion.images" 
+          :model-version="selectedVersion"
+        />
       </div>
 
       <!-- 右侧：模型详情 -->
@@ -140,9 +144,23 @@ defineExpose({
 
         <!-- 当前版本信息 -->
         <div v-if="selectedVersion" class="space-y-6">
+          <!-- 训练词显示 -->
+          <div v-if="selectedVersion.trainedWords && selectedVersion.trainedWords.length > 0" class="space-y-2">
+            <h3 class="font-semibold text-lg">🏷️ 训练词 (Trained Words)</h3>
+            <div class="flex flex-wrap gap-2">
+              <span
+                v-for="word in selectedVersion.trainedWords"
+                :key="word"
+                class="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-sm rounded-full font-mono"
+              >
+                {{ word }}
+              </span>
+            </div>
+          </div>
+
           <!-- 描述 -->
           <div class="space-y-2">
-            <h3 class="font-semibold text-lg">描述</h3>
+            <h3 class="font-semibold text-lg">📝 描述</h3>
             <div 
               v-if="modelInfo.description" 
               class="text-gray-700 dark:text-gray-300 text-sm prose prose-sm dark:prose-invert max-w-none" 
