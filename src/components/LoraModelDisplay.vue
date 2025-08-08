@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { getLoraModelInfo } from './info_getter';
 import type { LoraModel } from './lora_api_types';
 import ModelUrlInput from './ModelUrlInput.vue';
 import ModelCard from './ModelCard.vue';
+import CacheManagement from './CacheManagement.vue';
 import { MarkdownExporter } from './markdown_exporter';
+import { CacheManager } from './cache_manager';
 
 // 存储所有模型的数组
 const models = ref<LoraModel[]>([]);
@@ -32,6 +34,8 @@ async function fetchModelInfo(modelUrl: string) {
       } else {
         // 将新模型添加到数组开头
         models.value.unshift(data);
+        // 自动保存到缓存
+        autoSaveToCache();
       }
     } else {
       error.value = "获取模型信息失败，请检查控制台获取详细信息";
@@ -47,6 +51,8 @@ async function fetchModelInfo(modelUrl: string) {
 function removeModel(index: number) {
   if (index >= 0 && index < models.value.length) {
     models.value.splice(index, 1);
+    // 自动保存到缓存
+    autoSaveToCache();
   }
 }
 
@@ -55,6 +61,8 @@ function clearAllModels() {
   if (confirm('确定要清空所有模型吗？')) {
     models.value = [];
     error.value = null;
+    // 清除缓存
+    CacheManager.clearLocalStorage();
   }
 }
 
@@ -81,6 +89,28 @@ async function exportAllModels() {
     alert('导出失败，请重试');
   }
 }
+
+// 处理缓存加载的模型
+function handleModelsLoaded(loadedModels: LoraModel[]) {
+  models.value = loadedModels;
+  error.value = null;
+}
+
+// 自动保存到缓存
+function autoSaveToCache() {
+  if (models.value.length > 0) {
+    CacheManager.saveToLocalStorage(models.value);
+  }
+}
+
+// 组件挂载时尝试加载缓存
+onMounted(() => {
+  const cachedModels = CacheManager.loadFromLocalStorage();
+  if (cachedModels && cachedModels.length > 0) {
+    models.value = cachedModels;
+    console.log(`已从缓存加载 ${cachedModels.length} 个模型`);
+  }
+});
 </script>
 
 <template>
@@ -89,6 +119,13 @@ async function exportAllModels() {
     <ModelUrlInput 
       ref="inputComponent"
       @fetch-model="fetchModelInfo" 
+    />
+    
+    <!-- 缓存管理组件 -->
+    <CacheManagement 
+      :models="models"
+      @models-loaded="handleModelsLoaded"
+      @cache-updated="() => {}"
     />
     
     <!-- 错误提示 -->
@@ -100,20 +137,20 @@ async function exportAllModels() {
     <div v-if="hasModels" class="w-full bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg shadow-xl p-6">
       <div class="flex flex-wrap gap-3 items-center justify-between">
         <div class="flex items-center gap-3">
-          <span class="text-lg font-semibold">已获取 {{ models.length }} 个模型</span>
+          <span class="text-lg font-semibold">📋 已获取 {{ models.length }} 个模型</span>
         </div>
         <div class="flex flex-wrap gap-3">
           <button
             @click="exportAllModels"
             class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition text-sm font-medium"
           >
-            批量导出 ZIP
+            📦 批量导出 ZIP
           </button>
           <button
             @click="clearAllModels"
             class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition text-sm font-medium"
           >
-            清空所有
+            🗑️ 清空所有
           </button>
         </div>
       </div>
@@ -134,7 +171,7 @@ async function exportAllModels() {
     <!-- 空状态 -->
     <div v-if="!hasModels" class="text-center p-12 bg-white dark:bg-gray-900 rounded-lg shadow-xl">
       <p class="text-gray-500 text-lg">还没有获取任何模型信息</p>
-      <p class="text-gray-400 text-sm mt-2">请在上方输入 Civitai 模型 URL 开始获取</p>
+      <p class="text-gray-400 text-sm mt-2">请在上方输入 Civitai 模型 URL 开始获取，或从缓存/JSON文件导入已保存的模型</p>
     </div>
   </div>
 </template>

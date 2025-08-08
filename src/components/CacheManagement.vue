@@ -1,0 +1,218 @@
+<script setup lang="ts">
+import { ref, computed, onMounted } from 'vue';
+import { CacheManager } from './cache_manager';
+import type { LoraModel } from './lora_api_types';
+
+const emit = defineEmits<{
+  modelsLoaded: [models: LoraModel[]];
+  cacheUpdated: [];
+}>();
+
+const props = defineProps<{
+  models: LoraModel[];
+}>();
+
+const fileInput = ref<HTMLInputElement>();
+const isLoading = ref(false);
+const cacheStats = ref(CacheManager.getCacheStats());
+
+// 计算是否有模型可以缓存
+const hasModelsToCache = computed(() => props.models.length > 0);
+
+// 更新缓存统计信息
+function updateCacheStats() {
+  cacheStats.value = CacheManager.getCacheStats();
+}
+
+// 保存到本地缓存
+function saveToCache() {
+  try {
+    const success = CacheManager.saveToLocalStorage(props.models);
+    if (success) {
+      updateCacheStats();
+      alert(`成功缓存 ${props.models.length} 个模型到本地存储`);
+      emit('cacheUpdated');
+    } else {
+      alert('缓存失败，请检查浏览器存储权限');
+    }
+  } catch (error) {
+    console.error('缓存失败:', error);
+    alert('缓存失败，请重试');
+  }
+}
+
+// 从本地缓存加载
+function loadFromCache() {
+  try {
+    const cachedModels = CacheManager.loadFromLocalStorage();
+    if (cachedModels && cachedModels.length > 0) {
+      // 合并现有模型和缓存模型
+      const mergedModels = CacheManager.mergeModels(props.models, cachedModels);
+      emit('modelsLoaded', mergedModels);
+      alert(`成功从缓存加载 ${cachedModels.length} 个模型`);
+    } else {
+      alert('没有找到缓存数据');
+    }
+  } catch (error) {
+    console.error('加载缓存失败:', error);
+    alert('加载缓存失败，请重试');
+  }
+}
+
+// 清除本地缓存
+function clearCache() {
+  if (confirm('确定要清除本地缓存吗？此操作不可撤销。')) {
+    CacheManager.clearLocalStorage();
+    updateCacheStats();
+    alert('缓存已清除');
+    emit('cacheUpdated');
+  }
+}
+
+// 导出为JSON文件
+function exportToJson() {
+  if (!hasModelsToCache.value) {
+    alert('没有模型可以导出');
+    return;
+  }
+  
+  try {
+    CacheManager.exportToJson(props.models);
+    alert(`成功导出 ${props.models.length} 个模型到JSON文件`);
+  } catch (error) {
+    console.error('导出失败:', error);
+    alert('导出失败，请重试');
+  }
+}
+
+// 触发文件选择
+function triggerFileImport() {
+  fileInput.value?.click();
+}
+
+// 从JSON文件导入
+async function importFromJson(event: Event) {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  
+  if (!file) return;
+  
+  if (!file.name.toLowerCase().endsWith('.json')) {
+    alert('请选择JSON文件');
+    return;
+  }
+  
+  isLoading.value = true;
+  
+  try {
+    const importedModels = await CacheManager.importFromJson(file);
+    
+    if (importedModels.length === 0) {
+      alert('导入的文件中没有模型数据');
+      return;
+    }
+    
+    // 合并导入的模型和现有模型
+    const mergedModels = CacheManager.mergeModels(props.models, importedModels);
+    emit('modelsLoaded', mergedModels);
+    
+    alert(`成功导入 ${importedModels.length} 个模型`);
+  } catch (error) {
+    console.error('导入失败:', error);
+    alert(error instanceof Error ? error.message : '导入失败，请检查文件格式');
+  } finally {
+    isLoading.value = false;
+    // 清除文件输入
+    if (target) target.value = '';
+  }
+}
+
+// 组件挂载时更新缓存统计
+onMounted(() => {
+  updateCacheStats();
+});
+</script>
+
+<template>
+  <div class="w-full bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg shadow-xl p-6">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-semibold">💾 缓存管理</h3>
+      <div class="text-sm text-gray-500">
+        <span v-if="cacheStats.hasCache">
+          缓存: {{ cacheStats.modelsCount }} 个模型 | 更新: {{ cacheStats.lastUpdated }}
+        </span>
+        <span v-else>暂无缓存</span>
+      </div>
+    </div>
+
+    <!-- 操作按钮组 -->
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+      <!-- 保存到缓存 -->
+      <button
+        @click="saveToCache"
+        :disabled="!hasModelsToCache"
+        class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition text-sm font-medium"
+        title="将当前模型保存到本地缓存"
+      >
+        💾 保存缓存
+      </button>
+
+      <!-- 从缓存加载 -->
+      <button
+        @click="loadFromCache"
+        :disabled="!cacheStats.hasCache"
+        class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition text-sm font-medium"
+        title="从本地缓存加载模型"
+      >
+        📂 加载缓存
+      </button>
+
+      <!-- 导出JSON -->
+      <button
+        @click="exportToJson"
+        :disabled="!hasModelsToCache"
+        class="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition text-sm font-medium"
+        title="导出模型数据为JSON文件"
+      >
+        📤 导出JSON
+      </button>
+
+      <!-- 导入JSON -->
+      <button
+        @click="triggerFileImport"
+        :disabled="isLoading"
+        class="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition text-sm font-medium"
+        title="从JSON文件导入模型数据"
+      >
+        <span v-if="isLoading">⏳ 导入中...</span>
+        <span v-else>📥 导入JSON</span>
+      </button>
+
+      <!-- 清除缓存 -->
+      <button
+        @click="clearCache"
+        :disabled="!cacheStats.hasCache"
+        class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition text-sm font-medium"
+        title="清除本地缓存数据"
+      >
+        🗑️ 清除缓存
+      </button>
+    </div>
+
+    <!-- 隐藏的文件输入 -->
+    <input
+      ref="fileInput"
+      type="file"
+      accept=".json"
+      @change="importFromJson"
+      class="hidden"
+    />
+
+    <!-- 状态信息 -->
+    <div class="mt-4 text-xs text-gray-500 space-y-1">
+      <p>• 本地缓存使用浏览器存储，清除浏览器数据会丢失缓存</p>
+      <p>• JSON导出/导入功能可用于数据备份和跨设备同步</p>
+      <p>• 导入时会自动去重，相同ID的模型会被更新</p>
+    </div>
+  </div>
+</template>
