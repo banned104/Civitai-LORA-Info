@@ -1,0 +1,45 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "LoRA Info Downloader",
+  "version": "0.1.0",
+  "identifier": "com.lorainfodownloader.desktop",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5174",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "LoRA 模型信息下载器",
+        "width": 1200,
+        "height": 800,
+        "resizable": true,
+        "fullscreen": false,
+        "minWidth": 800,
+        "minHeight": 600,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "publisher": "LoRA Info Downloader",
+    "copyright": "Copyright (c) 2025 LoRA Info Downloader",
+    "category": "Utility",
+    "shortDescription": "Download and manage LoRA model information from Civitai",
+    "longDescription": "A comprehensive tool for downloading, viewing, and managing LoRA model information from Civitai platform with caching and export capabilities."
+  }
+}
