@@ -223,6 +223,71 @@ function handleClearDayCache(date: string) {
   }
 }
 
+// 处理导入JSON到指定日期
+function handleImportJsonToDate(date: string) {
+  console.log(`准备导入JSON到日期: ${date}`);
+  
+  // 创建隐藏的文件输入元素
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept = '.json';
+  fileInput.style.display = 'none';
+  
+  // 处理文件选择
+  fileInput.onchange = async (event) => {
+    const target = event.target as HTMLInputElement;
+    const file = target.files?.[0];
+    
+    if (!file) {
+      console.log('未选择文件');
+      return;
+    }
+    
+    try {
+      // 读取文件内容
+      const fileText = await file.text();
+      const jsonData = JSON.parse(fileText);
+      
+      // 验证JSON数据格式
+      if (!Array.isArray(jsonData) && !jsonData.models) {
+        throw new Error('JSON格式不正确，应该是模型数组或包含models字段的对象');
+      }
+      
+      // 提取模型数据
+      const modelsToImport: LoraModel[] = Array.isArray(jsonData) ? jsonData : jsonData.models;
+      
+      if (!Array.isArray(modelsToImport) || modelsToImport.length === 0) {
+        throw new Error('JSON中没有找到有效的模型数据');
+      }
+      
+      // 保存模型到指定日期
+      const success = CacheManager.saveDailyRecord(date, modelsToImport);
+      
+      if (success) {
+        console.log(`成功导入 ${modelsToImport.length} 个模型到 ${date}`);
+        alert(`成功导入 ${modelsToImport.length} 个模型到 ${date}`);
+        
+        // 刷新日历显示
+        calendarRef.value?.refresh();
+        dataDaysGridRef.value?.refresh();
+      } else {
+        throw new Error('保存到指定日期失败');
+      }
+      
+    } catch (err: any) {
+      console.error('导入JSON失败:', err);
+      error.value = `导入JSON到 ${date} 失败: ${err.message}`;
+    } finally {
+      // 清理文件输入元素
+      document.body.removeChild(fileInput);
+    }
+  };
+  
+  // 触发文件选择对话框
+  document.body.appendChild(fileInput);
+  fileInput.click();
+}
+
 // 处理日历刷新请求
 function handleCalendarRefresh() {
   calendarRef.value?.refresh();
@@ -327,6 +392,7 @@ onMounted(() => {
         @month-change="handleCalendarMonthChange"
         @load-day-cache="handleLoadDayCache"
         @clear-day-cache="handleClearDayCache"
+        @import-json-to-date="handleImportJsonToDate"
       />
     </div>
 

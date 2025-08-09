@@ -444,6 +444,65 @@ ${dailyRecords.map(record =>
   }
 
   /**
+   * 保存模型到指定日期
+   */
+  static saveDailyRecord(date: string, models: LoraModel[]): boolean {
+    if (models.length === 0) return false;
+
+    try {
+      const existingData = this.getCacheDataFromStorage();
+      
+      if (!existingData) return false;
+
+      // 找到指定日期的记录或创建新记录
+      const recordIndex = existingData.dailyRecords.findIndex(record => record.date === date);
+      
+      const modelIds = models.map(m => m.id);
+      const modelTitles = models.map(m => m.name);
+      
+      const newRecord: DailySaveRecord = {
+        date: date,
+        modelIds: modelIds,
+        modelTitles: modelTitles,
+        timestamp: Date.now()
+      };
+
+      if (recordIndex >= 0) {
+        // 更新现有记录，合并模型ID和标题
+        const existingRecord = existingData.dailyRecords[recordIndex];
+        const combinedIds = [...new Set([...existingRecord.modelIds, ...modelIds])];
+        const combinedTitles = [...new Set([...existingRecord.modelTitles, ...modelTitles])];
+        
+        existingData.dailyRecords[recordIndex] = {
+          ...newRecord,
+          modelIds: combinedIds,
+          modelTitles: combinedTitles
+        };
+      } else {
+        // 添加新记录
+        existingData.dailyRecords.push(newRecord);
+      }
+
+      // 将导入的模型也添加到主缓存中
+      const existingModels = existingData.models || [];
+      const newModels = models.filter(model => 
+        !existingModels.some(existing => existing.id === model.id)
+      );
+      
+      if (newModels.length > 0) {
+        existingData.models = [...existingModels, ...newModels];
+      }
+
+      // 保存更新的数据
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(existingData));
+      return true;
+    } catch (error) {
+      console.error('保存到指定日期失败:', error);
+      return false;
+    }
+  }
+
+  /**
    * 获取所有每日记录
    */
   static getDailyRecords(): DailySaveRecord[] {
