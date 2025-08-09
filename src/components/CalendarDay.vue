@@ -53,7 +53,7 @@ const dayClasses = computed(() => {
   
   // 根据记录情况设置背景色
   if (props.day.hasRecord) {
-    const intensityLevel = CalendarUtils.getIntensityLevel(props.day.modelTitles.length);
+    const intensityLevel = CalendarUtils.getIntensityLevel(props.day.totalModelCount);
     switch (intensityLevel) {
       case 1:
         classes.push('bg-green-100', 'dark:bg-green-900', 'hover:bg-green-200', 'dark:hover:bg-green-800');

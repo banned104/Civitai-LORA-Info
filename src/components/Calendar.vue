@@ -247,7 +247,7 @@ const onDayContextMenu = (event: MouseEvent, day: CalendarDayType) => {
 };
 
 const onDayHover = (event: MouseEvent, day: CalendarDayType) => {
-  if (day.hasRecord && day.modelTitles.length > 0 && !showContextMenu.value) {
+  if (day.hasRecord && day.totalModelCount > 0 && !showContextMenu.value) {
     hoveredDay.value = day;
     tooltipPosition.value = {
       x: event.clientX,

@@ -1,0 +1,64 @@
+{
+  "version": "1.0.0",
+  "timestamp": 1723190400000,
+  "models": [
+    {
+      "id": 9001,
+      "name": "测试导入模型1",
+      "description": "这是一个用于测试导入功能的模型",
+      "creator": {
+        "username": "testuser_import"
+      },
+      "modelVersions": [
+        {
+          "id": 90001,
+          "name": "测试版本1",
+          "createdAt": "2025-08-09T00:00:00.000Z",
+          "files": [
+            {
+              "name": "test_model_v1.safetensors",
+              "downloadUrl": "https://example.com/test_model_v1.safetensors"
+            }
+          ],
+          "images": [],
+          "trainedWords": ["test", "import", "model"],
+          "description": "用于测试的模型版本"
+        }
+      ],
+      "tags": ["test", "import"],
+      "type": "LORA"
+    },
+    {
+      "id": 9002,
+      "name": "测试导入模型2",
+      "description": "这是另一个用于测试导入功能的模型",
+      "creator": {
+        "username": "testuser_import2"
+      },
+      "modelVersions": [
+        {
+          "id": 90002,
+          "name": "测试版本2",
+          "createdAt": "2025-08-09T00:00:00.000Z",
+          "files": [
+            {
+              "name": "test_model_v2.safetensors",
+              "downloadUrl": "https://example.com/test_model_v2.safetensors"
+            }
+          ],
+          "images": [],
+          "trainedWords": ["test", "import", "second"],
+          "description": "第二个测试模型版本"
+        }
+      ],
+      "tags": ["test", "import", "second"],
+      "type": "LORA"
+    }
+  ],
+  "dailyRecords": [],
+  "metadata": {
+    "exportDate": "2025年8月9日 17:15:00",
+    "totalModels": 2,
+    "appVersion": "1.0.0"
+  }
+}

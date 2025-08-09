@@ -9,6 +9,7 @@ import ExportPanel from './ExportPanel.vue';
 const emit = defineEmits<{
   modelsLoaded: [models: LoraModel[]];
   cacheUpdated: [];
+  calendarRefresh: [];
 }>();
 
 const props = defineProps<{
@@ -33,7 +34,11 @@ function saveToCache() {
   try {
     const success = CacheManager.saveToLocalStorage(props.models);
     if (success) {
+      // 记录今日保存
+      CacheManager.recordDailySave(props.models);
       updateCacheStats();
+      // 通知刷新日历
+      emit('calendarRefresh');
       alert(`成功缓存 ${props.models.length} 个模型到本地存储`);
       emit('cacheUpdated');
     } else {
@@ -65,10 +70,12 @@ function loadFromCache() {
 
 // 清除本地缓存
 function clearCache() {
-  if (confirm('确定要清除本地缓存吗？此操作不可撤销。')) {
+  if (confirm('确定要清除本地缓存吗？这将删除所有已保存的模型数据和日历记录。')) {
     CacheManager.clearLocalStorage();
     updateCacheStats();
-    alert('缓存已清除');
+    // 通知刷新日历
+    emit('calendarRefresh');
+    alert('本地缓存已清除');
     emit('cacheUpdated');
   }
 }
@@ -138,6 +145,18 @@ async function importFromJson(event: Event) {
     // 合并导入的模型和现有模型
     const mergedModels = CacheManager.mergeModels(props.models, importedModels);
     emit('modelsLoaded', mergedModels);
+    
+    // 保存合并后的模型到缓存
+    CacheManager.saveToLocalStorage(mergedModels);
+    
+    // 记录今日导入的模型到日历
+    CacheManager.recordDailySave(importedModels);
+    
+    // 更新缓存统计
+    updateCacheStats();
+    
+    // 通知刷新日历
+    emit('calendarRefresh');
     
     alert(`成功导入 ${importedModels.length} 个模型`);
   } catch (error) {

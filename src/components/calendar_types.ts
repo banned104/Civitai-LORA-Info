@@ -9,7 +9,8 @@ export interface CalendarDay {
   date: string; // YYYY-MM-DD 格式
   day: number; // 月份中的第几天
   hasRecord: boolean; // 是否有保存记录
-  modelTitles: string[]; // 该日保存的模型标题
+  modelTitles: string[]; // 该日保存的模型标题（最多显示maxTitleDisplay个）
+  totalModelCount: number; // 该日保存的模型总数量
   isCurrentMonth: boolean; // 是否属于当前显示月份
   isToday: boolean; // 是否是今天
 }

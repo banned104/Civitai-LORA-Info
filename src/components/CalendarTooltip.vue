@@ -8,7 +8,7 @@
       <div class="tooltip-content">
         <div class="tooltip-header">
           <span class="date-text">{{ formatDate(day.date) }}</span>
-          <span class="count-badge">{{ day.modelTitles.length }}个模型</span>
+          <span class="count-badge">{{ day.totalModelCount }}个模型</span>
         </div>
         
         <div class="tooltip-body">
@@ -25,7 +25,7 @@
               v-if="remainingCount > 0"
               class="more-indicator"
             >
-              ... 还有 {{ remainingCount }} 个模型
+              More ...
             </div>
           </div>
         </div>
@@ -57,7 +57,7 @@ const displayTitles = computed(() => {
 // 计算剩余数量
 const remainingCount = computed(() => {
   if (!props.day) return 0;
-  return Math.max(0, props.day.modelTitles.length - 6);
+  return Math.max(0, props.day.totalModelCount - 6);
 });
 
 // 计算tooltip的位置样式

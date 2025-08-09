@@ -58,12 +58,14 @@ export class CalendarUtils {
       const dateStr = this.formatDate(currentDate);
       const dayRecord = records.find(r => r.date === dateStr);
       const isCurrentMonth = currentDate.getMonth() === month - 1;
+      const totalModelCount = dayRecord?.modelTitles.length || 0;
       
       calendar.push({
         date: dateStr,
         day: currentDate.getDate(),
         hasRecord: !!dayRecord,
         modelTitles: dayRecord?.modelTitles.slice(0, fullConfig.maxTitleDisplay) || [],
+        totalModelCount: totalModelCount,
         isCurrentMonth,
         isToday: dateStr === today
       });

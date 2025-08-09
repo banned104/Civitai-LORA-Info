@@ -101,6 +101,9 @@ async function exportAllModels() {
 function handleModelsLoaded(loadedModels: LoraModel[]) {
   models.value = loadedModels;
   error.value = null;
+  
+  // 刷新日历以显示更新后的数据
+  calendarRef.value?.refresh();
 }
 
 // 自动保存到缓存
@@ -165,6 +168,11 @@ function handleClearDayCache(date: string) {
     console.error('清除日期缓存失败:', err);
     error.value = `清除 ${date} 的缓存失败`;
   }
+}
+
+// 处理日历刷新请求
+function handleCalendarRefresh() {
+  calendarRef.value?.refresh();
 };
 
 // 组件挂载时尝试加载缓存
@@ -190,6 +198,7 @@ onMounted(() => {
       :models="models"
       @models-loaded="handleModelsLoaded"
       @cache-updated="() => {}"
+      @calendar-refresh="handleCalendarRefresh"
     />
 
     <!-- 日历组件切换按钮 -->
