@@ -5,6 +5,7 @@ import type { LoraModel } from './lora_api_types';
 import ModelUrlInput from './ModelUrlInput.vue';
 import ModelCard from './ModelCard.vue';
 import CacheManagement from './CacheManagement.vue';
+import Calendar from './Calendar.vue';
 import { MarkdownExporter } from './markdown_exporter';
 import { CacheManager } from './cache_manager';
 
@@ -15,6 +16,10 @@ const error = ref<string | null>(null);
 // 引用输入组件
 const inputComponent = ref<InstanceType<typeof ModelUrlInput>>();
 const modelCardRefs = ref<InstanceType<typeof ModelCard>[]>([]);
+const calendarRef = ref<InstanceType<typeof Calendar>>();
+
+// 显示状态
+const showCalendar = ref(false);
 
 // 计算是否有模型
 const hasModels = computed(() => models.value.length > 0);
@@ -34,8 +39,10 @@ async function fetchModelInfo(modelUrl: string) {
       } else {
         // 将新模型添加到数组开头
         models.value.unshift(data);
-        // 自动保存到缓存
+        // 自动保存到缓存并记录今日保存
         autoSaveToCache();
+        // 记录单个模型到今日
+        CacheManager.recordDailySave([data]);
       }
     } else {
       error.value = "获取模型信息失败，请检查控制台获取详细信息";
@@ -100,8 +107,65 @@ function handleModelsLoaded(loadedModels: LoraModel[]) {
 function autoSaveToCache() {
   if (models.value.length > 0) {
     CacheManager.saveToLocalStorage(models.value);
+    // 记录今日保存
+    CacheManager.recordDailySave(models.value);
+    // 刷新日历
+    calendarRef.value?.refresh();
   }
 }
+
+// 切换日历显示
+function toggleCalendar() {
+  showCalendar.value = !showCalendar.value;
+}
+
+// 处理日历日期点击
+function handleCalendarDayClick(date: string, modelTitles: string[]) {
+  console.log(`点击日期: ${date}, 模型: `, modelTitles);
+  
+  // 加载该日期的模型到当前显示列表
+  try {
+    const dayModels = CacheManager.getModelsForDate(date);
+    if (dayModels.length > 0) {
+      // 合并当前模型和该日期的模型，去除重复
+      const mergedModels = CacheManager.mergeModels(models.value, dayModels);
+      models.value = mergedModels;
+      
+      // 显示成功消息
+      console.log(`已加载 ${date} 的 ${dayModels.length} 个模型到当前列表`);
+    }
+  } catch (err: any) {
+    console.error('加载日期模型失败:', err);
+    error.value = `加载 ${date} 的模型失败`;
+  }
+};
+
+// 处理日历月份变化
+function handleCalendarMonthChange(year: number, month: number) {
+  console.log(`日历切换到: ${year}年${month}月`);
+};
+
+// 处理加载日期缓存
+function handleLoadDayCache(date: string) {
+  handleCalendarDayClick(date, []);
+};
+
+// 处理清除日期缓存
+function handleClearDayCache(date: string) {
+  try {
+    const success = CacheManager.clearDailyRecord(date);
+    if (success) {
+      console.log(`已清除 ${date} 的缓存记录`);
+      // 刷新日历显示
+      calendarRef.value?.refresh();
+    } else {
+      console.log(`清除 ${date} 的缓存记录失败`);
+    }
+  } catch (err: any) {
+    console.error('清除日期缓存失败:', err);
+    error.value = `清除 ${date} 的缓存失败`;
+  }
+};
 
 // 组件挂载时尝试加载缓存
 onMounted(() => {
@@ -127,6 +191,27 @@ onMounted(() => {
       @models-loaded="handleModelsLoaded"
       @cache-updated="() => {}"
     />
+
+    <!-- 日历组件切换按钮 -->
+    <div class="flex justify-center">
+      <button
+        @click="toggleCalendar"
+        class="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition text-sm font-medium flex items-center gap-2"
+      >
+        📅 {{ showCalendar ? '隐藏日历' : '显示保存历史日历' }}
+      </button>
+    </div>
+
+    <!-- 日历组件 -->
+    <div v-if="showCalendar" class="w-full">
+      <Calendar
+        ref="calendarRef"
+        @day-click="handleCalendarDayClick"
+        @month-change="handleCalendarMonthChange"
+        @load-day-cache="handleLoadDayCache"
+        @clear-day-cache="handleClearDayCache"
+      />
+    </div>
     
     <!-- 错误提示 -->
     <div v-if="error" class="p-4 text-sm text-red-800 rounded-lg bg-red-50 dark:bg-gray-800 dark:text-red-400" role="alert">
