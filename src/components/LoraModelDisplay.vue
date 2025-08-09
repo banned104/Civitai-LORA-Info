@@ -6,12 +6,18 @@ import ModelUrlInput from './ModelUrlInput.vue';
 import ModelCard from './ModelCard.vue';
 import CacheManagement from './CacheManagement.vue';
 import Calendar from './Calendar.vue';
+import ModelSearch from './ModelSearch.vue';
+import SearchShortcuts from './SearchShortcuts.vue';
 import { MarkdownExporter } from './markdown_exporter';
 import { CacheManager } from './cache_manager';
 
 // 存储所有模型的数组
 const models = ref<LoraModel[]>([]);
 const error = ref<string | null>(null);
+
+// 搜索相关状态
+const filteredModels = ref<LoraModel[]>([]);
+const isSearchActive = ref(false);
 
 // 引用输入组件
 const inputComponent = ref<InstanceType<typeof ModelUrlInput>>();
@@ -23,6 +29,11 @@ const showCalendar = ref(false);
 
 // 计算是否有模型
 const hasModels = computed(() => models.value.length > 0);
+
+// 计算要显示的模型列表
+const displayModels = computed(() => {
+  return isSearchActive.value ? filteredModels.value : models.value;
+});
 
 // 获取模型信息
 async function fetchModelInfo(modelUrl: string) {
@@ -175,6 +186,36 @@ function handleCalendarRefresh() {
   calendarRef.value?.refresh();
 };
 
+// 处理搜索结果
+function handleSearchResults(searchResults: LoraModel[]) {
+  filteredModels.value = searchResults;
+  isSearchActive.value = true;
+}
+
+// 处理清除搜索
+function handleClearSearch() {
+  filteredModels.value = [];
+  isSearchActive.value = false;
+}
+
+// 处理搜索快捷方式
+function handleQuickSearch(query: string) {
+  const results = CacheManager.searchModels(query);
+  handleSearchResults(results);
+}
+
+// 处理高级搜索快捷方式
+function handleQuickAdvancedSearch(options: any) {
+  if (options.customResults) {
+    // 直接使用自定义结果
+    handleSearchResults(options.customResults);
+  } else {
+    // 使用高级搜索
+    const results = CacheManager.advancedSearchModels(options);
+    handleSearchResults(results);
+  }
+}
+
 // 组件挂载时尝试加载缓存
 onMounted(() => {
   const cachedModels = CacheManager.loadFromLocalStorage();
@@ -199,6 +240,22 @@ onMounted(() => {
       @models-loaded="handleModelsLoaded"
       @cache-updated="() => {}"
       @calendar-refresh="handleCalendarRefresh"
+    />
+
+    <!-- 搜索快捷方式 -->
+    <SearchShortcuts
+      v-if="hasModels"
+      :all-models="models"
+      @search="handleQuickSearch"
+      @advanced-search="handleQuickAdvancedSearch"
+    />
+
+    <!-- 搜索组件 -->
+    <ModelSearch
+      v-if="hasModels"
+      :all-models="models"
+      @search-results="handleSearchResults"
+      @clear-search="handleClearSearch"
     />
 
     <!-- 日历组件切换按钮 -->
@@ -231,7 +288,15 @@ onMounted(() => {
     <div v-if="hasModels" class="w-full bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg shadow-xl p-6">
       <div class="flex flex-wrap gap-3 items-center justify-between">
         <div class="flex items-center gap-3">
-          <span class="text-lg font-semibold">📋 已获取 {{ models.length }} 个模型</span>
+          <span class="text-lg font-semibold">
+            📋 
+            <span v-if="isSearchActive">
+              搜索结果: {{ displayModels.length }} / {{ models.length }} 个模型
+            </span>
+            <span v-else>
+              已获取 {{ models.length }} 个模型
+            </span>
+          </span>
         </div>
         <div class="flex flex-wrap gap-3">
           <button
@@ -251,15 +316,21 @@ onMounted(() => {
     </div>
 
     <!-- 模型卡片列表 -->
-    <div v-if="hasModels" class="space-y-6">
+    <div v-if="displayModels.length > 0" class="space-y-6">
       <ModelCard
-        v-for="(model, index) in models"
+        v-for="(model, index) in displayModels"
         :key="model.id"
         ref="modelCardRefs"
         :model-info="model"
-        :index="index"
+        :index="models.findIndex(m => m.id === model.id)"
         @remove="removeModel"
       />
+    </div>
+
+    <!-- 搜索无结果状态 -->
+    <div v-if="isSearchActive && displayModels.length === 0" class="text-center p-12 bg-white dark:bg-gray-900 rounded-lg shadow-xl">
+      <p class="text-gray-500 text-lg">🔍 没有找到匹配的模型</p>
+      <p class="text-gray-400 text-sm mt-2">尝试调整搜索关键词或使用高级搜索功能</p>
     </div>
 
     <!-- 空状态 -->

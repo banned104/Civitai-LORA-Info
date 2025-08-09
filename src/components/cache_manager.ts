@@ -568,4 +568,260 @@ ${dailyRecords.map(record =>
       return null;
     }
   }
+
+  /**
+   * 搜索模型
+   * 支持模糊搜索模型名称、描述、训练词和Prompt
+   */
+  static searchModels(query: string): LoraModel[] {
+    try {
+      const models = this.loadFromLocalStorage();
+      if (!models || models.length === 0) {
+        return [];
+      }
+
+      if (!query || query.trim() === '') {
+        return models;
+      }
+
+      const searchTerm = query.toLowerCase().trim();
+      
+      return models.filter(model => {
+        // 搜索模型名称
+        if (model.name?.toLowerCase().includes(searchTerm)) {
+          return true;
+        }
+
+        // 搜索模型描述
+        if (model.description?.toLowerCase().includes(searchTerm)) {
+          return true;
+        }
+
+        // 搜索标签
+        if (model.tags?.some(tag => tag.toLowerCase().includes(searchTerm))) {
+          return true;
+        }
+
+        // 搜索所有版本的训练词
+        if (model.modelVersions?.some(version => 
+          version.trainedWords?.some(word => word.toLowerCase().includes(searchTerm))
+        )) {
+          return true;
+        }
+
+        // 搜索所有版本中图片的 Prompt
+        if (model.modelVersions?.some(version =>
+          version.images?.some(image => {
+            const meta = image.meta;
+            if (!meta) return false;
+            
+            // 搜索正面提示词
+            if (meta.prompt?.toLowerCase().includes(searchTerm)) {
+              return true;
+            }
+            
+            // 搜索负面提示词
+            if (meta.negativePrompt?.toLowerCase().includes(searchTerm)) {
+              return true;
+            }
+            
+            // 搜索资源信息（如LoRA名称）
+            if (meta.resources?.some(resource => 
+              resource.name?.toLowerCase().includes(searchTerm)
+            )) {
+              return true;
+            }
+            
+            return false;
+          })
+        )) {
+          return true;
+        }
+
+        return false;
+      });
+    } catch (error) {
+      console.error('搜索模型失败:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 高级搜索模型
+   * 支持多种搜索条件组合
+   */
+  static advancedSearchModels(options: {
+    name?: string;
+    description?: string;
+    trainedWords?: string[];
+    prompt?: string;
+    negativePrompt?: string;
+    tags?: string[];
+    creatorUsername?: string;
+  }): LoraModel[] {
+    try {
+      const models = this.loadFromLocalStorage();
+      if (!models || models.length === 0) {
+        return [];
+      }
+
+      return models.filter(model => {
+        // 按名称过滤
+        if (options.name && !model.name?.toLowerCase().includes(options.name.toLowerCase())) {
+          return false;
+        }
+
+        // 按描述过滤
+        if (options.description && !model.description?.toLowerCase().includes(options.description.toLowerCase())) {
+          return false;
+        }
+
+        // 按创建者过滤
+        if (options.creatorUsername && !model.creator?.username.toLowerCase().includes(options.creatorUsername.toLowerCase())) {
+          return false;
+        }
+
+        // 按标签过滤
+        if (options.tags && options.tags.length > 0) {
+          const hasMatchingTag = options.tags.some(searchTag => 
+            model.tags?.some(modelTag => modelTag.toLowerCase().includes(searchTag.toLowerCase()))
+          );
+          if (!hasMatchingTag) {
+            return false;
+          }
+        }
+
+        // 按训练词过滤
+        if (options.trainedWords && options.trainedWords.length > 0) {
+          const hasMatchingTrainedWord = options.trainedWords.some(searchWord =>
+            model.modelVersions?.some(version =>
+              version.trainedWords?.some(word => word.toLowerCase().includes(searchWord.toLowerCase()))
+            )
+          );
+          if (!hasMatchingTrainedWord) {
+            return false;
+          }
+        }
+
+        // 按Prompt过滤
+        if (options.prompt || options.negativePrompt) {
+          const hasMatchingPrompt = model.modelVersions?.some(version =>
+            version.images?.some(image => {
+              const meta = image.meta;
+              if (!meta) return false;
+
+              if (options.prompt && !meta.prompt?.toLowerCase().includes(options.prompt.toLowerCase())) {
+                return false;
+              }
+
+              if (options.negativePrompt && !meta.negativePrompt?.toLowerCase().includes(options.negativePrompt.toLowerCase())) {
+                return false;
+              }
+
+              return true;
+            })
+          );
+          if (!hasMatchingPrompt) {
+            return false;
+          }
+        }
+
+        return true;
+      });
+    } catch (error) {
+      console.error('高级搜索模型失败:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 获取所有唯一的训练词
+   */
+  static getAllTrainedWords(): string[] {
+    try {
+      const models = this.loadFromLocalStorage();
+      if (!models) return [];
+
+      const allWords = new Set<string>();
+      
+      models.forEach(model => {
+        model.modelVersions?.forEach(version => {
+          version.trainedWords?.forEach(word => {
+            allWords.add(word);
+          });
+        });
+      });
+
+      return Array.from(allWords).sort();
+    } catch (error) {
+      console.error('获取训练词失败:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 获取所有唯一的标签
+   */
+  static getAllTags(): string[] {
+    try {
+      const models = this.loadFromLocalStorage();
+      if (!models) return [];
+
+      const allTags = new Set<string>();
+      
+      models.forEach(model => {
+        model.tags?.forEach(tag => {
+          allTags.add(tag);
+        });
+      });
+
+      return Array.from(allTags).sort();
+    } catch (error) {
+      console.error('获取标签失败:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 获取搜索建议
+   */
+  static getSearchSuggestions(query: string, limit: number = 10): string[] {
+    try {
+      if (!query || query.trim().length < 2) return [];
+
+      const searchTerm = query.toLowerCase().trim();
+      const suggestions = new Set<string>();
+
+      const models = this.loadFromLocalStorage();
+      if (!models) return [];
+
+      models.forEach(model => {
+        // 模型名称建议
+        if (model.name?.toLowerCase().includes(searchTerm)) {
+          suggestions.add(model.name);
+        }
+
+        // 训练词建议
+        model.modelVersions?.forEach(version => {
+          version.trainedWords?.forEach(word => {
+            if (word.toLowerCase().includes(searchTerm)) {
+              suggestions.add(word);
+            }
+          });
+        });
+
+        // 标签建议
+        model.tags?.forEach(tag => {
+          if (tag.toLowerCase().includes(searchTerm)) {
+            suggestions.add(tag);
+          }
+        });
+      });
+
+      return Array.from(suggestions).slice(0, limit);
+    } catch (error) {
+      console.error('获取搜索建议失败:', error);
+      return [];
+    }
+  }
 }
