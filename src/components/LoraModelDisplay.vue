@@ -6,6 +6,7 @@ import ModelUrlInput from './ModelUrlInput.vue';
 import ModelCard from './ModelCard.vue';
 import CacheManagement from './CacheManagement.vue';
 import Calendar from './Calendar.vue';
+import DataDaysGrid from './DataDaysGrid.vue';
 import ModelSearch from './ModelSearch.vue';
 import SearchShortcuts from './SearchShortcuts.vue';
 import { MarkdownExporter } from './markdown_exporter';
@@ -24,9 +25,11 @@ const currentViewDate = ref<string>(''); // 当前查看的日期
 const inputComponent = ref<InstanceType<typeof ModelUrlInput>>();
 const modelCardRefs = ref<InstanceType<typeof ModelCard>[]>([]);
 const calendarRef = ref<InstanceType<typeof Calendar>>();
+const dataDaysGridRef = ref<InstanceType<typeof DataDaysGrid>>();
 
 // 显示状态
 const showCalendar = ref(false);
+const showDataDaysGrid = ref(false);
 
 // 计算是否有模型
 const hasModels = computed(() => models.value.length > 0);
@@ -134,6 +137,11 @@ function toggleCalendar() {
   showCalendar.value = !showCalendar.value;
 }
 
+// 切换数据日期网格显示状态
+function toggleDataDaysGrid() {
+  showDataDaysGrid.value = !showDataDaysGrid.value;
+}
+
 // 处理日历日期点击
 function handleCalendarDayClick(date: string, dayModels: LoraModel[]) {
   console.log(`点击日期: ${date}, 找到 ${dayModels.length} 个模型`);
@@ -172,6 +180,32 @@ function handleLoadDayCache(date: string) {
   handleCalendarDayClick(date, []);
 };
 
+// 处理数据日期网格日期点击
+function handleDataDayClick(day: any, dayModels: LoraModel[]) {
+  console.log(`从数据网格点击日期: ${day.date}, 找到 ${dayModels.length} 个模型`);
+  
+  // 设置当前查看的日期
+  currentViewDate.value = day.date;
+  
+  if (dayModels.length > 0) {
+    // 显示该日期的模型
+    filteredModels.value = dayModels;
+    isSearchActive.value = true;
+    error.value = null;
+  } else {
+    // 如果该日期没有模型，显示提示信息
+    console.log(`${day.date} 没有保存的模型`);
+    error.value = `${day.date} 没有保存的LORA模型`;
+    
+    // 清空当前显示
+    filteredModels.value = [];
+    isSearchActive.value = true;
+  }
+  
+  // 关闭数据日期网格，回到主界面
+  showDataDaysGrid.value = false;
+}
+
 // 处理清除日期缓存
 function handleClearDayCache(date: string) {
   try {
@@ -192,6 +226,7 @@ function handleClearDayCache(date: string) {
 // 处理日历刷新请求
 function handleCalendarRefresh() {
   calendarRef.value?.refresh();
+  dataDaysGridRef.value?.refresh(); // 同时刷新数据日期网格
 };
 
 // 处理搜索结果
@@ -205,6 +240,7 @@ function handleClearSearch() {
   filteredModels.value = [];
   isSearchActive.value = false;
   currentViewDate.value = ''; // 清除日期查看状态
+  showDataDaysGrid.value = false; // 同时关闭数据日期网格
 }
 
 // 处理搜索快捷方式
@@ -268,12 +304,18 @@ onMounted(() => {
     />
 
     <!-- 日历组件切换按钮 -->
-    <div class="flex justify-center">
+    <div class="flex justify-center gap-3">
       <button
         @click="toggleCalendar"
         class="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition text-sm font-medium flex items-center gap-2"
       >
         📅 {{ showCalendar ? '隐藏日历' : '显示保存历史日历' }}
+      </button>
+      <button
+        @click="toggleDataDaysGrid"
+        class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition text-sm font-medium flex items-center gap-2"
+      >
+        📊 {{ showDataDaysGrid ? '隐藏数据日期' : '有数据的日期一览' }}
       </button>
     </div>
 
@@ -285,6 +327,16 @@ onMounted(() => {
         @month-change="handleCalendarMonthChange"
         @load-day-cache="handleLoadDayCache"
         @clear-day-cache="handleClearDayCache"
+      />
+    </div>
+
+    <!-- 数据日期网格组件 -->
+    <div v-if="showDataDaysGrid" class="w-full">
+      <DataDaysGrid
+        ref="dataDaysGridRef"
+        :currentViewDate="currentViewDate"
+        @day-click="handleDataDayClick"
+        @close="showDataDaysGrid = false"
       />
     </div>
     
