@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import LoraModelDisplay from './components/LoraModelDisplay.vue';
+import BackToTop from './components/BackToTop.vue';
 </script>
 
 <template>
@@ -7,6 +8,9 @@ import LoraModelDisplay from './components/LoraModelDisplay.vue';
     <div class="w-[85%] mx-auto">
       <LoraModelDisplay />
     </div>
+    
+    <!-- 回到顶部按钮 -->
+    <BackToTop />
   </main>
 </template>
 
