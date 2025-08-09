@@ -95,8 +95,8 @@ const clearTestData = () => {
   calendarRef.value?.refresh();
 };
 
-const handleDayClick = (date: string, modelTitles: string[]) => {
-  addLog(`点击日期: ${date}, 模型数量: ${modelTitles.length}`);
+const handleDayClick = (date: string, models: LoraModel[]) => {
+  addLog(`点击日期: ${date}, 模型数量: ${models.length}`);
 };
 
 const handleMonthChange = (year: number, month: number) => {

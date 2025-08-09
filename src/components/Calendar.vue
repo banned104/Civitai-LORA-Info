@@ -315,7 +315,7 @@ const loadDayCache = (date: string) => {
   try {
     const models = CacheManager.getModelsForDate(date);
     if (models.length > 0) {
-      emit('dayClick', date, models.map(m => m.name));
+      emit('dayClick', date, models);
       console.log(`加载 ${date} 的缓存，共 ${models.length} 个模型`);
     } else {
       console.log(`${date} 没有缓存的模型`);

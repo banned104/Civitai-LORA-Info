@@ -26,6 +26,11 @@ const markdownContent = computed(() => {
   return MarkdownExporter.exportModel(props.modelInfo, selectedVersion.value || undefined);
 });
 
+// 生成模型URL
+const modelUrl = computed(() => {
+  return `https://civitai.com/models/${props.modelInfo.id}`;
+});
+
 // 生成文件名
 const generateFilename = computed(() => {
   return `${props.modelInfo.name.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_')}_${props.modelInfo.id}`;
@@ -49,6 +54,22 @@ async function copyMarkdownToClipboard() {
   }
 }
 
+// 打开模型网页
+function openModelUrl() {
+  window.open(modelUrl.value, '_blank');
+}
+
+// 复制模型ID到剪贴板
+async function copyModelId() {
+  try {
+    await navigator.clipboard.writeText(props.modelInfo.id.toString());
+    alert('模型ID已复制到剪贴板！');
+  } catch (error) {
+    console.error('复制失败:', error);
+    alert('复制失败，请手动复制');
+  }
+}
+
 function toggleMarkdownPreview() {
   showMarkdownPreview.value = !showMarkdownPreview.value;
 }
@@ -69,9 +90,42 @@ defineExpose({
     <!-- 模型标题和移除按钮 -->
     <div class="flex justify-between items-start mb-4">
       <div class="flex-1">
-        <h1 class="text-2xl lg:text-3xl font-bold mb-2">{{ modelInfo.name }}</h1>
+        <h1 class="text-2xl lg:text-3xl font-bold mb-2">
+          <a 
+            @click="openModelUrl" 
+            class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 cursor-pointer underline decoration-2 underline-offset-2 hover:decoration-blue-800 dark:hover:decoration-blue-300 transition-colors duration-200 inline-flex items-center gap-2"
+            :title="`点击访问模型页面: ${modelUrl}`"
+          >
+            {{ modelInfo.name }}
+            <svg 
+              class="w-5 h-5 flex-shrink-0" 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24" 
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path 
+                stroke-linecap="round" 
+                stroke-linejoin="round" 
+                stroke-width="2" 
+                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+              />
+            </svg>
+          </a>
+        </h1>
         <p class="text-lg text-gray-600 dark:text-gray-400">by {{ modelInfo.creator.username }}</p>
-        <p class="text-sm text-gray-500 dark:text-gray-500">ID: {{ modelInfo.id }}</p>
+        <p class="text-sm text-gray-500 dark:text-gray-500 flex items-center gap-2">
+          ID: {{ modelInfo.id }}
+          <button 
+            @click="copyModelId"
+            class="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors duration-200"
+            title="复制模型ID"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+          </button>
+        </p>
       </div>
       <button
         @click="removeModel"
