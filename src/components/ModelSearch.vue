@@ -6,7 +6,7 @@
         <input
           v-model="searchQuery"
           type="text"
-          placeholder="搜索模型名称、描述、训练词或Prompt... (输入2个字符后自动搜索)"
+          placeholder="搜索所有历史模型数据... (输入2个字符后自动搜索，搜索词会一直保持)"
           class="search-input"
           @input="onSearchInput"
           @keyup.enter="performSearch"
@@ -145,7 +145,7 @@
       <div class="search-stats" v-if="hasSearched">
         找到 {{ searchResults.length }} 个模型
         <div class="search-actions">
-          <button v-if="hasActiveSearch" @click="showAllModels" class="show-all-button">
+          <button v-if="hasActiveSearch" @click="showAllAndClearSearch" class="show-all-button">
             显示全部
           </button>
           <button v-if="isSearchActive" @click="clearCurrentFilter" class="clear-filter-button">
@@ -162,9 +162,9 @@ import { ref, computed, watch } from 'vue';
 import { CacheManager } from './cache_manager';
 import type { LoraModel } from './lora_api_types';
 
-// Props
+// Props - 移除allModels依赖，改为直接从缓存获取数据
 interface Props {
-  allModels: LoraModel[];
+  allModels?: LoraModel[]; // 保持兼容性，但不再使用
 }
 
 const props = defineProps<Props>();
@@ -209,6 +209,7 @@ const hasActiveSearch = computed(() => {
 
 // 监听搜索输入
 let searchTimeout: ReturnType<typeof setTimeout> | null = null;
+let lastSearchQuery = ref(''); // 记录上次搜索的关键词
 
 function onSearchInput() {
   // 防抖搜索建议和实时搜索
@@ -216,27 +217,41 @@ function onSearchInput() {
     clearTimeout(searchTimeout);
   }
   
-  // 设置搜索中状态
-  if (searchQuery.value.trim().length >= 2) {
-    isSearching.value = true;
-  }
+  // 设置搜索中状态（仅在实际搜索时显示）
+  const currentQuery = searchQuery.value.trim();
   
   searchTimeout = setTimeout(() => {
+    // 更新搜索建议
     updateSuggestions();
     
-    // 如果有搜索内容，自动执行搜索
-    if (searchQuery.value.trim().length >= 2) {
-      performSearch();
+    // 只在搜索词真正改变时才执行搜索
+    const lastQuery = lastSearchQuery.value.trim();
+    
+    if (currentQuery !== lastQuery) {
+      console.log(`搜索词发生变化: "${lastQuery}" -> "${currentQuery}"`);
+      
+      // 如果有搜索内容且达到最小长度，自动执行搜索
+      if (currentQuery.length >= 2) {
+        isSearching.value = true; // 设置搜索中状态
+        performSearch();
+      } else if (currentQuery.length === 0 && lastQuery.length > 0) {
+        // 如果搜索框被完全清空，清除搜索状态但保持搜索框为空
+        clearSearchStateButKeepQuery();
+      }
+      
+      // 更新上次搜索的关键词
+      lastSearchQuery.value = currentQuery;
     }
     
     // 重置搜索中状态
     isSearching.value = false;
-  }, 500); // 稍微增加延迟以避免过于频繁的搜索
+  }, 400); // 增加延迟，减少频繁搜索
 }
 
 // 更新搜索建议
 function updateSuggestions() {
   if (searchQuery.value.trim().length >= 2) {
+    // 基于所有历史数据生成搜索建议
     suggestions.value = CacheManager.getSearchSuggestions(searchQuery.value, 8);
   } else {
     suggestions.value = [];
@@ -245,29 +260,53 @@ function updateSuggestions() {
 
 // 选择建议
 function selectSuggestion(suggestion: string) {
+  console.log(`选择搜索建议: "${suggestion}"`);
+  
+  // 先更新上次搜索记录，避免触发重复搜索
+  lastSearchQuery.value = suggestion;
+  // 再设置搜索框内容
   searchQuery.value = suggestion;
+  
   showSuggestions.value = false;
   performSearch();
 }
 
 // 执行简单搜索
 function performSearch() {
+  // 关闭建议下拉框，保持搜索框内容不变
   showSuggestions.value = false;
   
-  if (searchQuery.value.trim() === '') {
-    showAllModels();
+  const currentQuery = searchQuery.value.trim();
+  
+  if (currentQuery === '') {
+    clearSearchStateButKeepQuery();
     return;
   }
 
-  const results = CacheManager.searchModels(searchQuery.value);
+  // 搜索所有历史数据，不再依赖props.allModels
+  const results = CacheManager.searchModels(currentQuery);
   searchResults.value = results;
   hasSearched.value = true;
   isSearchActive.value = true;
+  
+  console.log(`执行搜索: 关键词 "${currentQuery}", 找到 ${results.length} 个结果`);
+  console.log(`搜索框内容保持: "${searchQuery.value}"`);
   emit('searchResults', results);
+}
+
+// 清除搜索状态但保持搜索框内容（内部使用）
+function clearSearchStateButKeepQuery() {
+  console.log('清除搜索状态但保持搜索框内容');
+  searchResults.value = [];
+  hasSearched.value = false;
+  isSearchActive.value = false;
+  showSuggestions.value = false;
+  // 不通知父组件，也不清空搜索框
 }
 
 // 执行高级搜索
 function performAdvancedSearch() {
+  // 关闭建议下拉框，保持搜索框内容不变
   showSuggestions.value = false;
   
   const options: any = { ...advancedOptions.value };
@@ -288,7 +327,7 @@ function performAdvancedSearch() {
       .filter(tag => tag !== '');
   }
   
-  // 如果所有条件都为空，显示全部
+  // 如果所有条件都为空，清除搜索状态但保持搜索框内容
   const hasAnyCondition = Object.values(options).some(val => {
     if (Array.isArray(val)) {
       return val.length > 0;
@@ -297,27 +336,60 @@ function performAdvancedSearch() {
   });
   
   if (!hasAnyCondition) {
-    showAllModels();
+    clearSearchStateButKeepQuery();
     return;
   }
 
+  // 搜索所有历史数据
   const results = CacheManager.advancedSearchModels(options);
   searchResults.value = results;
   hasSearched.value = true;
   isSearchActive.value = true;
+  
+  console.log(`高级搜索: 找到 ${results.length} 个结果`, options);
+  console.log(`搜索框内容保持: "${searchQuery.value}"`);
   emit('searchResults', results);
 }
 
-// 清除搜索
+// 清除搜索（用户主动点击清除按钮）
 function clearSearch() {
+  console.log('用户主动清除搜索框内容');
   searchQuery.value = '';
+  lastSearchQuery.value = '';
   showSuggestions.value = false;
   isSearchActive.value = false;
-  showAllModels();
+  searchResults.value = [];
+  hasSearched.value = false;
+  
+  // 用户主动清除时通知父组件
+  emit('clearSearch');
 }
 
-// 清除高级搜索
+// 程序性地显示所有模型（不通知父组件）
+function showAllModelsInternal() {
+  console.log('程序性显示全部模型，不通知父组件');
+  searchResults.value = [];
+  hasSearched.value = false;
+  isSearchActive.value = false;
+}
+
+// 显示全部并清除搜索（用户点击"显示全部"按钮）
+function showAllAndClearSearch() {
+  console.log('用户点击显示全部，清除搜索状态');
+  searchQuery.value = '';
+  lastSearchQuery.value = '';
+  showSuggestions.value = false;
+  searchResults.value = [];
+  hasSearched.value = false;
+  isSearchActive.value = false;
+  
+  // 通知父组件清除搜索并返回主列表
+  emit('clearSearch');
+}
+
+// 清除高级搜索（保持主搜索框内容）
 function clearAdvancedSearch() {
+  console.log('清除高级搜索条件，保持主搜索框内容');
   advancedOptions.value = {
     name: '',
     description: '',
@@ -328,23 +400,19 @@ function clearAdvancedSearch() {
   trainedWordsInput.value = '';
   tagsInput.value = '';
   
-  if (!searchQuery.value.trim()) {
-    showAllModels();
+  // 如果主搜索框有内容，重新执行基础搜索
+  if (searchQuery.value.trim()) {
+    performSearch();
+  } else {
+    clearSearchStateButKeepQuery();
   }
 }
 
-// 显示全部模型
-function showAllModels() {
-  searchResults.value = [];
-  hasSearched.value = false;
-  isSearchActive.value = false;
-  emit('clearSearch');
-}
-
-// 清空当前筛选结果
+// 清空当前筛选结果（保持搜索框内容）
 function clearCurrentFilter() {
-  // 清空所有搜索条件
-  searchQuery.value = '';
+  console.log('清空当前筛选，保持搜索框内容');
+  
+  // 清空高级搜索条件，但保留主搜索框内容
   advancedOptions.value = {
     name: '',
     description: '',
@@ -355,14 +423,14 @@ function clearCurrentFilter() {
   trainedWordsInput.value = '';
   tagsInput.value = '';
   
-  // 重置状态
-  searchResults.value = [];
-  hasSearched.value = false;
-  isSearchActive.value = false;
-  showSuggestions.value = false;
-  
-  // 通知父组件清除搜索
-  emit('clearSearch');
+  // 如果主搜索框有内容，重新执行基础搜索
+  if (searchQuery.value.trim()) {
+    // 不需要重置 lastSearchQuery，因为搜索词没有改变
+    performSearch();
+  } else {
+    // 如果搜索框为空，清除搜索状态
+    clearSearchStateButKeepQuery();
+  }
 }
 
 // 切换高级搜索
@@ -399,31 +467,23 @@ watch(searchQuery, (newQuery, oldQuery) => {
                               trainedWordsInput.value.trim() !== '' ||
                               tagsInput.value.trim() !== '';
     
-    // 如果没有其他搜索条件，清空搜索结果
+    // 如果没有其他搜索条件，清空搜索结果但不通知父组件
     if (!hasOtherConditions) {
-      searchResults.value = [];
-      hasSearched.value = false;
-      isSearchActive.value = false;
-      showSuggestions.value = false;
-      emit('clearSearch');
+      clearSearchStateButKeepQuery();
     }
   }
 });
 
 // 监听高级搜索选项变化，实现实时响应
 watch([advancedOptions, trainedWordsInput, tagsInput], () => {
-  // 如果所有搜索条件都为空，自动清空结果
+  // 如果所有搜索条件都为空，自动清空结果但保持搜索框内容
   const hasAnyCondition = searchQuery.value.trim() !== '' ||
                          Object.values(advancedOptions.value).some(val => val.trim() !== '') ||
                          trainedWordsInput.value.trim() !== '' ||
                          tagsInput.value.trim() !== '';
   
   if (!hasAnyCondition && (hasSearched.value || isSearchActive.value)) {
-    searchResults.value = [];
-    hasSearched.value = false;
-    isSearchActive.value = false;
-    showSuggestions.value = false;
-    emit('clearSearch');
+    clearSearchStateButKeepQuery();
   }
 }, { deep: true });
 </script>

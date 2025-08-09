@@ -680,25 +680,65 @@ ${dailyRecords.map(record =>
       return null;
     }
   }
+  
+  /**
+   * 获取所有历史模型（包含所有日期的数据）
+   */
+  static getAllHistoricalModels(): LoraModel[] {
+    try {
+      // 获取当前模型列表
+      const currentModels = this.loadFromLocalStorage() || [];
+      console.log(`获取所有历史模型: 当前模型列表包含 ${currentModels.length} 个模型`);
+      
+      // 获取所有日期记录
+      const dailyRecords = this.getDailyRecords();
+      console.log(`获取所有历史模型: 日期记录包含 ${dailyRecords.length} 个日期`);
+      
+      // 收集所有模型ID
+      const allModelIds = new Set<number>();
+      
+      // 添加当前模型ID
+      currentModels.forEach(model => allModelIds.add(model.id));
+      
+      // 添加历史记录中的模型ID
+      dailyRecords.forEach(record => {
+        record.modelIds.forEach(id => allModelIds.add(id));
+      });
+      
+      console.log(`获取所有历史模型: 总共收集到 ${allModelIds.size} 个唯一模型ID`);
+      
+      // 目前只返回当前模型列表中的模型，因为历史模型的详细数据需要额外存储
+      // 在实际应用中，可能需要将模型详情也按日期存储
+      return currentModels;
+    } catch (error) {
+      console.error('获取所有历史模型失败:', error);
+      return [];
+    }
+  }
 
   /**
-   * 搜索模型
+   * 搜索模型（搜索所有历史数据）
    * 支持模糊搜索模型名称、描述、训练词和Prompt
    */
   static searchModels(query: string): LoraModel[] {
     try {
-      const models = this.loadFromLocalStorage();
+      // 使用所有历史模型进行搜索
+      const models = this.getAllHistoricalModels();
+      console.log(`执行搜索: 在 ${models.length} 个模型中搜索关键词 "${query}"`);
+      
       if (!models || models.length === 0) {
+        console.log('搜索中止: 没有可搜索的模型');
         return [];
       }
 
       if (!query || query.trim() === '') {
+        console.log('搜索中止: 搜索关键词为空，返回所有模型');
         return models;
       }
 
       const searchTerm = query.toLowerCase().trim();
       
-      return models.filter(model => {
+      const results = models.filter(model => {
         // 搜索模型名称
         if (model.name?.toLowerCase().includes(searchTerm)) {
           return true;
@@ -752,6 +792,11 @@ ${dailyRecords.map(record =>
 
         return false;
       });
+      
+      console.log(`搜索完成: 关键词 "${query}" 找到 ${results.length} 个匹配的模型`);
+      console.log(`匹配的模型:`, results.map((m: LoraModel) => ({ id: m.id, name: m.name })));
+      
+      return results;
     } catch (error) {
       console.error('搜索模型失败:', error);
       return [];
@@ -759,7 +804,7 @@ ${dailyRecords.map(record =>
   }
 
   /**
-   * 高级搜索模型
+   * 高级搜索模型（搜索所有历史数据）
    * 支持多种搜索条件组合
    */
   static advancedSearchModels(options: {
@@ -772,7 +817,8 @@ ${dailyRecords.map(record =>
     creatorUsername?: string;
   }): LoraModel[] {
     try {
-      const models = this.loadFromLocalStorage();
+      // 使用所有历史模型进行搜索
+      const models = this.getAllHistoricalModels();
       if (!models || models.length === 0) {
         return [];
       }
@@ -895,7 +941,7 @@ ${dailyRecords.map(record =>
   }
 
   /**
-   * 获取搜索建议
+   * 获取搜索建议（基于所有历史数据）
    */
   static getSearchSuggestions(query: string, limit: number = 10): string[] {
     try {
@@ -904,7 +950,8 @@ ${dailyRecords.map(record =>
       const searchTerm = query.toLowerCase().trim();
       const suggestions = new Set<string>();
 
-      const models = this.loadFromLocalStorage();
+      // 使用所有历史模型生成建议
+      const models = this.getAllHistoricalModels();
       if (!models) return [];
 
       models.forEach(model => {

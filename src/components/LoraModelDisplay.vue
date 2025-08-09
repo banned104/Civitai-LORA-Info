@@ -31,12 +31,19 @@ const dataDaysGridRef = ref<InstanceType<typeof DataDaysGrid>>();
 const showCalendar = ref(false);
 const showDataDaysGrid = ref(false);
 
-// 计算是否有模型
-const hasModels = computed(() => models.value.length > 0);
+// 计算是否有模型（包括搜索结果）
+const hasModels = computed(() => {
+  return models.value.length > 0 || isSearchActive.value;
+});
 
 // 计算要显示的模型列表
 const displayModels = computed(() => {
-  return isSearchActive.value ? filteredModels.value : models.value;
+  // 在搜索模式下，显示搜索结果
+  if (isSearchActive.value) {
+    return filteredModels.value;
+  }
+  // 非搜索模式下，显示当前模型列表
+  return models.value;
 });
 
 // 获取模型信息
@@ -321,19 +328,55 @@ function handleCalendarRefresh() {
 
 // 处理搜索结果
 function handleSearchResults(searchResults: LoraModel[]) {
+  console.log(`=== 搜索功能执行 ===`);
+  console.log(`搜索结果: 找到 ${searchResults.length} 个模型`);
+  console.log(`搜索结果详情:`, searchResults.map(m => ({ id: m.id, name: m.name })));
+  
+  // 清除当前显示状态
+  error.value = null;
+  currentViewDate.value = '';
+  
+  // 清除日历选中状态
+  calendarRef.value?.setSelectedDate('');
+  
+  // 关闭数据日期网格
+  showDataDaysGrid.value = false;
+  
+  // 设置搜索结果
   filteredModels.value = searchResults;
   isSearchActive.value = true;
+  
+  // 直接设置搜索结果，避免中间清空导致组件重新渲染
+  models.value = [...searchResults];
+  console.log(`搜索完成: 显示 ${searchResults.length} 个搜索结果`);
+  console.log(`当前显示状态: isSearchActive=${isSearchActive.value}, models.length=${models.value.length}, filteredModels.length=${filteredModels.value.length}`);
 }
 
 // 处理清除搜索
 function handleClearSearch() {
+  console.log('清除搜索状态并恢复主模型列表');
+  
+  // 清除搜索相关状态
   filteredModels.value = [];
   isSearchActive.value = false;
-  currentViewDate.value = ''; // 清除日期查看状态
-  showDataDaysGrid.value = false; // 同时关闭数据日期网格
+  currentViewDate.value = '';
+  error.value = null;
+  
+  // 关闭数据日期网格
+  showDataDaysGrid.value = false;
   
   // 清除日历选中状态
   calendarRef.value?.setSelectedDate('');
+  
+  // 恢复当前模型列表（从缓存重新加载）
+  const cachedModels = CacheManager.loadFromLocalStorage();
+  if (cachedModels && cachedModels.length > 0) {
+    models.value = cachedModels;
+    console.log(`已恢复主模型列表: ${cachedModels.length} 个模型`);
+  } else {
+    models.value = [];
+    console.log('没有缓存的模型，显示空列表');
+  }
 }
 
 // 处理搜索快捷方式
@@ -383,7 +426,6 @@ onMounted(() => {
     <!-- 搜索快捷方式 -->
     <SearchShortcuts
       v-if="hasModels"
-      :all-models="models"
       @search="handleQuickSearch"
       @advanced-search="handleQuickAdvancedSearch"
     />
@@ -391,7 +433,6 @@ onMounted(() => {
     <!-- 搜索组件 -->
     <ModelSearch
       v-if="hasModels"
-      :all-models="models"
       @search-results="handleSearchResults"
       @clear-search="handleClearSearch"
     />
@@ -446,7 +487,10 @@ onMounted(() => {
           <span class="text-lg font-semibold">
             📋 
             <span v-if="isSearchActive">
-              搜索结果: {{ displayModels.length }} / {{ models.length }} 个模型
+              搜索结果: {{ displayModels.length }} 个模型
+            </span>
+            <span v-else-if="currentViewDate">
+              {{ currentViewDate }} 的模型: {{ displayModels.length }} 个
             </span>
             <span v-else>
               已获取 {{ models.length }} 个模型

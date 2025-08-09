@@ -80,9 +80,9 @@ import { computed } from 'vue';
 import { CacheManager } from './cache_manager';
 import type { LoraModel } from './lora_api_types';
 
-// Props
+// Props - 移除allModels依赖，改为直接从缓存获取数据
 interface Props {
-  allModels: LoraModel[];
+  allModels?: LoraModel[]; // 保持兼容性，但不再使用
 }
 
 const props = defineProps<Props>();
@@ -95,11 +95,16 @@ interface Emits {
 
 const emit = defineEmits<Emits>();
 
+// 获取所有历史模型数据
+const allHistoricalModels = computed(() => {
+  return CacheManager.getAllHistoricalModels();
+});
+
 // 计算热门训练词（出现频率最高的前10个）
 const popularTrainedWords = computed(() => {
   const wordCount = new Map<string, number>();
   
-  props.allModels.forEach(model => {
+  allHistoricalModels.value.forEach(model => {
     model.modelVersions?.forEach(version => {
       version.trainedWords?.forEach(word => {
         const count = wordCount.get(word) || 0;
@@ -118,7 +123,7 @@ const popularTrainedWords = computed(() => {
 const popularTags = computed(() => {
   const tagCount = new Map<string, number>();
   
-  props.allModels.forEach(model => {
+  allHistoricalModels.value.forEach(model => {
     model.tags?.forEach(tag => {
       const count = tagCount.get(tag) || 0;
       tagCount.set(tag, count + 1);
@@ -132,11 +137,11 @@ const popularTags = computed(() => {
 });
 
 // 统计信息
-const totalModels = computed(() => props.allModels.length);
+const totalModels = computed(() => allHistoricalModels.value.length);
 
 const totalTrainedWords = computed(() => {
   const uniqueWords = new Set<string>();
-  props.allModels.forEach(model => {
+  allHistoricalModels.value.forEach(model => {
     model.modelVersions?.forEach(version => {
       version.trainedWords?.forEach(word => uniqueWords.add(word));
     });
@@ -145,7 +150,7 @@ const totalTrainedWords = computed(() => {
 });
 
 const totalImages = computed(() => {
-  return props.allModels.reduce((total, model) => {
+  return allHistoricalModels.value.reduce((total, model) => {
     return total + (model.modelVersions?.reduce((versionTotal, version) => {
       return versionTotal + (version.images?.length || 0);
     }, 0) || 0);
@@ -154,7 +159,7 @@ const totalImages = computed(() => {
 
 const uniqueCreators = computed(() => {
   const creators = new Set<string>();
-  props.allModels.forEach(model => {
+  allHistoricalModels.value.forEach(model => {
     if (model.creator?.username) {
       creators.add(model.creator.username);
     }
@@ -173,7 +178,7 @@ function searchByTag(tag: string) {
 
 function filterByRecentlyAdded() {
   // 按添加时间排序，显示最近添加的
-  const sortedModels = [...props.allModels].sort((a, b) => {
+  const sortedModels = [...allHistoricalModels.value].sort((a, b) => {
     const aDate = a.modelVersions?.[0]?.createdAt || '';
     const bDate = b.modelVersions?.[0]?.createdAt || '';
     return new Date(bDate).getTime() - new Date(aDate).getTime();
@@ -185,9 +190,9 @@ function filterByRecentlyAdded() {
 
 function filterByMostImages() {
   // 按图片数量排序
-  const sortedModels = [...props.allModels].sort((a, b) => {
-    const aImages = a.modelVersions?.reduce((total, version) => total + (version.images?.length || 0), 0) || 0;
-    const bImages = b.modelVersions?.reduce((total, version) => total + (version.images?.length || 0), 0) || 0;
+  const sortedModels = [...allHistoricalModels.value].sort((a, b) => {
+    const aImages = a.modelVersions?.reduce((total: number, version) => total + (version.images?.length || 0), 0) || 0;
+    const bImages = b.modelVersions?.reduce((total: number, version) => total + (version.images?.length || 0), 0) || 0;
     return bImages - aImages;
   });
   
@@ -196,9 +201,9 @@ function filterByMostImages() {
 
 function filterByMostTrainedWords() {
   // 按训练词数量排序
-  const sortedModels = [...props.allModels].sort((a, b) => {
-    const aWords = a.modelVersions?.reduce((total, version) => total + (version.trainedWords?.length || 0), 0) || 0;
-    const bWords = b.modelVersions?.reduce((total, version) => total + (version.trainedWords?.length || 0), 0) || 0;
+  const sortedModels = [...allHistoricalModels.value].sort((a, b) => {
+    const aWords = a.modelVersions?.reduce((total: number, version) => total + (version.trainedWords?.length || 0), 0) || 0;
+    const bWords = b.modelVersions?.reduce((total: number, version) => total + (version.trainedWords?.length || 0), 0) || 0;
     return bWords - aWords;
   });
   
