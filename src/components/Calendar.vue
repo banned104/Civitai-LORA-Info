@@ -271,11 +271,15 @@ const updateMonth = (year: number, month: number) => {
 };
 
 const onDayClick = (day: CalendarDayType) => {
+  // 无论是否有记录都处理点击事件
   if (day.hasRecord) {
-    // 加载当日缓存
-    loadDayCache(day.date);
+    // 如果有记录，获取当日的所有模型
+    const models = CacheManager.getModelsForDate(day.date);
+    emit('dayClick', day.date, models);
+  } else {
+    // 如果没有记录，发送空数组
+    emit('dayClick', day.date, []);
   }
-  emit('dayClick', day.date, day.modelTitles);
 };
 
 const onDayContextMenu = (event: MouseEvent, day: CalendarDayType) => {

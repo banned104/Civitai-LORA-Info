@@ -2,6 +2,8 @@
  * Calendar组件相关的类型定义
  */
 
+import type { LoraModel } from './lora_api_types';
+
 /**
  * 日历日期信息
  */
@@ -49,7 +51,7 @@ export interface CalendarProps {
  */
 export interface CalendarEmits {
   monthChange: [year: number, month: number];
-  dayClick: [date: string, modelTitles: string[]];
+  dayClick: [date: string, models: LoraModel[]];
   dayContextMenu: [date: string, day: CalendarDay];
   loadDayCache: [date: string];
   clearDayCache: [date: string];

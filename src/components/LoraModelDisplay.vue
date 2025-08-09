@@ -18,6 +18,7 @@ const error = ref<string | null>(null);
 // 搜索相关状态
 const filteredModels = ref<LoraModel[]>([]);
 const isSearchActive = ref(false);
+const currentViewDate = ref<string>(''); // 当前查看的日期
 
 // 引用输入组件
 const inputComponent = ref<InstanceType<typeof ModelUrlInput>>();
@@ -134,23 +135,30 @@ function toggleCalendar() {
 }
 
 // 处理日历日期点击
-function handleCalendarDayClick(date: string, modelTitles: string[]) {
-  console.log(`点击日期: ${date}, 模型: `, modelTitles);
+function handleCalendarDayClick(date: string, dayModels: LoraModel[]) {
+  console.log(`点击日期: ${date}, 找到 ${dayModels.length} 个模型`);
   
-  // 加载该日期的模型到当前显示列表
-  try {
-    const dayModels = CacheManager.getModelsForDate(date);
-    if (dayModels.length > 0) {
-      // 合并当前模型和该日期的模型，去除重复
-      const mergedModels = CacheManager.mergeModels(models.value, dayModels);
-      models.value = mergedModels;
-      
-      // 显示成功消息
-      console.log(`已加载 ${date} 的 ${dayModels.length} 个模型到当前列表`);
-    }
-  } catch (err: any) {
-    console.error('加载日期模型失败:', err);
-    error.value = `加载 ${date} 的模型失败`;
+  // 设置当前查看的日期
+  currentViewDate.value = date;
+  
+  // 直接显示该日期的模型，不合并到当前列表
+  if (dayModels.length > 0) {
+    // 替换当前显示的模型为该日期的模型
+    models.value = [...dayModels];
+    isSearchActive.value = true;
+    filteredModels.value = [...dayModels];
+    
+    // 显示成功消息
+    console.log(`正在显示 ${date} 的 ${dayModels.length} 个模型`);
+    error.value = null;
+  } else {
+    // 如果该日期没有模型，显示提示信息
+    console.log(`${date} 没有保存的模型`);
+    error.value = `${date} 没有保存的LORA模型`;
+    
+    // 清空当前显示
+    filteredModels.value = [];
+    isSearchActive.value = true;
   }
 };
 
@@ -196,6 +204,7 @@ function handleSearchResults(searchResults: LoraModel[]) {
 function handleClearSearch() {
   filteredModels.value = [];
   isSearchActive.value = false;
+  currentViewDate.value = ''; // 清除日期查看状态
 }
 
 // 处理搜索快捷方式
