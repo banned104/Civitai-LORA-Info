@@ -53,4 +53,5 @@ export interface CalendarEmits {
   dayContextMenu: [date: string, day: CalendarDay];
   loadDayCache: [date: string];
   clearDayCache: [date: string];
+  importJsonToDate: [date: string];
 }

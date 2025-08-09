@@ -70,6 +70,18 @@
         <div class="w-3 h-3 bg-green-300 rounded"></div>
         <span>有记录</span>
       </div>
+      
+      <!-- 筛选选项 -->
+      <div class="flex items-center space-x-2 ml-4">
+        <label class="flex items-center space-x-1 cursor-pointer">
+          <input 
+            v-model="showOnlyWithData" 
+            type="checkbox" 
+            class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+          />
+          <span class="text-sm">只显示有记录的日期</span>
+        </label>
+      </div>
     </div>
 
     <!-- 星期标题 -->
@@ -112,6 +124,7 @@
       @loadDayCache="loadDayCache"
       @clearDayCache="clearDayCache"
       @viewDetails="viewDayDetails"
+      @importJsonToDate="importJsonToDate"
     />
   </div>
 </template>
@@ -140,6 +153,8 @@ const currentYear = ref(props.currentYear);
 const currentMonth = ref(props.currentMonth);
 const selectedYear = ref(props.currentYear);
 const calendarDays = ref<CalendarDayType[]>([]);
+const allCalendarDays = ref<CalendarDayType[]>([]); // 保存完整的日历数据
+const showOnlyWithData = ref(false); // 筛选选项
 
 // Tooltip 相关
 const showTooltip = ref(false);
@@ -173,15 +188,44 @@ const availableYears = computed(() => {
 const loadCalendarData = async () => {
   try {
     const records = CacheManager.getDailyRecordsForMonth(currentYear.value, currentMonth.value);
-    calendarDays.value = CalendarUtils.generateCalendarGrid(
+    const allDays = CalendarUtils.generateCalendarGrid(
       currentYear.value,
       currentMonth.value,
       records,
       props.config
     );
+    
+    // 保存完整数据
+    allCalendarDays.value = allDays;
+    
+    // 应用筛选
+    applyFilter();
   } catch (error) {
     console.error('加载日历数据失败:', error);
+    allCalendarDays.value = [];
     calendarDays.value = [];
+  }
+};
+
+// 应用筛选
+const applyFilter = () => {
+  if (showOnlyWithData.value) {
+    // 只显示有记录的日期，但保持空白占位符以维持网格布局
+    calendarDays.value = allCalendarDays.value.map(day => {
+      if (!day.hasRecord) {
+        // 创建空白占位符
+        return {
+          ...day,
+          date: '',
+          isCurrentMonth: false,
+          isEmpty: true
+        };
+      }
+      return day;
+    });
+  } else {
+    // 显示所有日期
+    calendarDays.value = allCalendarDays.value;
   }
 };
 
@@ -296,6 +340,11 @@ const clearDayCache = (date: string) => {
 const viewDayDetails = (date: string, modelTitles: string[]) => {
   console.log(`查看 ${date} 的详情:`, modelTitles);
   // 可以在这里触发一个详情弹窗或其他UI交互
+};
+
+// 导入JSON到指定日期
+const importJsonToDate = (date: string) => {
+  emit('importJsonToDate', date);
 };
 
 // 关闭右键菜单

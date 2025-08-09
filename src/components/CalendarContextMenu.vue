@@ -34,6 +34,14 @@
             👁️ 查看详情
           </button>
 
+          <!-- 导入JSON到此日期 -->
+          <button
+            @click="importJsonToDate"
+            class="menu-item import-item"
+          >
+            📥 导入JSON到此日期
+          </button>
+
           <!-- 分隔线 -->
           <div v-if="day.hasRecord" class="menu-divider"></div>
 
@@ -79,6 +87,7 @@ interface Emits {
   (e: 'loadDayCache', date: string): void;
   (e: 'clearDayCache', date: string): void;
   (e: 'viewDetails', date: string, modelTitles: string[]): void;
+  (e: 'importJsonToDate', date: string): void;
 }
 
 const props = defineProps<Props>();
@@ -142,6 +151,13 @@ const clearDayCache = () => {
 const viewDetails = () => {
   if (props.day) {
     emit('viewDetails', props.day.date, props.day.modelTitles);
+    closeMenu();
+  }
+};
+
+const importJsonToDate = () => {
+  if (props.day) {
+    emit('importJsonToDate', props.day.date);
     closeMenu();
   }
 };
@@ -265,6 +281,14 @@ const closeMenu = () => {
 
 .dark .view-item {
   color: #38bdf8;
+}
+
+.import-item {
+  color: #7c3aed;
+}
+
+.dark .import-item {
+  color: #a78bfa;
 }
 
 .danger-item {
