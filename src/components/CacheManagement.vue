@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { CacheManager } from './cache_manager';
+import { ExportManager, ExportType } from './export_manager';
 import type { LoraModel } from './lora_api_types';
+import type { ExportResult } from './export_manager';
+import ExportPanel from './ExportPanel.vue';
 
 const emit = defineEmits<{
   modelsLoaded: [models: LoraModel[]];
@@ -15,6 +18,7 @@ const props = defineProps<{
 const fileInput = ref<HTMLInputElement>();
 const isLoading = ref(false);
 const cacheStats = ref(CacheManager.getCacheStats());
+const showExportPanel = ref(false);
 
 // 计算是否有模型可以缓存
 const hasModelsToCache = computed(() => props.models.length > 0);
@@ -71,6 +75,16 @@ function clearCache() {
 
 // 导出为JSON文件
 function exportToJson() {
+  showExportPanel.value = true;
+}
+
+// 关闭导出面板
+function closeExportPanel() {
+  showExportPanel.value = false;
+}
+
+// 快速导出当前模型为JSON
+function quickExportJson() {
   if (!hasModelsToCache.value) {
     alert('没有模型可以导出');
     return;
@@ -82,6 +96,15 @@ function exportToJson() {
   } catch (error) {
     console.error('导出失败:', error);
     alert('导出失败，请重试');
+  }
+}
+
+// 处理导出完成
+function handleExportComplete(result: ExportResult) {
+  if (result.success) {
+    alert(`导出成功！\n${result.message}`);
+  } else {
+    alert(`导出失败：${result.message}`);
   }
 }
 
@@ -146,7 +169,7 @@ onMounted(() => {
     </div>
 
     <!-- 操作按钮组 -->
-    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
       <!-- 保存到缓存 -->
       <button
         @click="saveToCache"
@@ -167,14 +190,24 @@ onMounted(() => {
         📂 加载缓存
       </button>
 
-      <!-- 导出JSON -->
+      <!-- 快速导出JSON -->
+      <button
+        @click="quickExportJson"
+        :disabled="!hasModelsToCache"
+        class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition text-sm font-medium"
+        title="快速导出当前模型为JSON文件"
+      >
+        📄 快速导出
+      </button>
+
+      <!-- 高级导出 -->
       <button
         @click="exportToJson"
         :disabled="!hasModelsToCache"
         class="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition text-sm font-medium"
-        title="导出模型数据为JSON文件"
+        title="选择导出方式和格式"
       >
-        📤 导出JSON
+        📤 高级导出
       </button>
 
       <!-- 导入JSON -->
@@ -207,6 +240,17 @@ onMounted(() => {
       @change="importFromJson"
       class="hidden"
     />
+
+    <!-- 导出面板 -->
+    <div v-if="showExportPanel" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="max-w-2xl w-full mx-4">
+        <ExportPanel 
+          :models="props.models"
+          @close="closeExportPanel"
+          @export-complete="handleExportComplete"
+        />
+      </div>
+    </div>
 
     <!-- 状态信息 -->
     <div class="mt-4 text-xs text-gray-500 space-y-1">

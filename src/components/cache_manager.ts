@@ -105,6 +105,160 @@ export class CacheManager {
   }
 
   /**
+   * 按日期导出JSON文件，打包为ZIP下载
+   */
+  static async exportDailyJsonAsZip(filename?: string): Promise<void> {
+    try {
+      // 动态导入JSZip
+      const JSZip = (await import('jszip')).default;
+      
+      const zip = new JSZip();
+      const dailyRecords = this.getDailyRecords();
+      const allModels = this.loadFromLocalStorage() || [];
+      
+      if (dailyRecords.length === 0) {
+        throw new Error('没有找到任何日期记录');
+      }
+
+      // 按日期分组导出
+      for (const record of dailyRecords) {
+        const dayModels = allModels.filter(model => record.modelIds.includes(model.id));
+        
+        if (dayModels.length > 0) {
+          const dayData = {
+            date: record.date,
+            timestamp: record.timestamp,
+            modelCount: dayModels.length,
+            models: dayModels,
+            metadata: {
+              exportDate: new Date().toLocaleString('zh-CN'),
+              originalDate: new Date(record.timestamp).toLocaleString('zh-CN'),
+              appVersion: this.CACHE_VERSION
+            }
+          };
+          
+          const jsonString = JSON.stringify(dayData, null, 2);
+          const fileName = `models_${record.date}.json`;
+          zip.file(fileName, jsonString);
+        }
+      }
+
+      // 创建汇总文件
+      const summaryData = {
+        exportInfo: {
+          exportDate: new Date().toLocaleString('zh-CN'),
+          totalDays: dailyRecords.length,
+          totalModels: allModels.length,
+          appVersion: this.CACHE_VERSION
+        },
+        dailySummary: dailyRecords.map(record => ({
+          date: record.date,
+          modelCount: record.modelIds.length,
+          modelTitles: record.modelTitles,
+          timestamp: record.timestamp
+        })),
+        allModels: allModels
+      };
+      
+      zip.file('summary.json', JSON.stringify(summaryData, null, 2));
+      
+      // 创建README说明文件
+      const readmeContent = this.generateExportReadme(dailyRecords, allModels.length);
+      zip.file('README.md', readmeContent);
+
+      // 生成ZIP文件并下载
+      const content = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(content);
+      
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename || `lora_models_daily_export_${new Date().toISOString().split('T')[0]}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      URL.revokeObjectURL(url);
+      
+    } catch (error) {
+      console.error('按日期导出JSON失败:', error);
+      throw new Error('按日期导出失败，请重试');
+    }
+  }
+
+  /**
+   * 生成导出说明文件
+   */
+  private static generateExportReadme(dailyRecords: DailySaveRecord[], totalModels: number): string {
+    const exportDate = new Date().toLocaleString('zh-CN');
+    
+    return `# LORA模型导出报告
+
+## 导出信息
+- **导出时间**: ${exportDate}
+- **导出天数**: ${dailyRecords.length} 天
+- **模型总数**: ${totalModels} 个
+- **应用版本**: ${this.CACHE_VERSION}
+
+## 文件说明
+
+### 核心文件
+- \`summary.json\` - 完整汇总数据，包含所有模型和每日统计
+- \`README.md\` - 本说明文件
+
+### 按日期分类的文件
+${dailyRecords.map(record => 
+  `- \`models_${record.date}.json\` - ${record.date} (${record.modelIds.length}个模型)`
+).join('\n')}
+
+## 文件结构说明
+
+### 单日文件格式 (models_YYYY-MM-DD.json)
+\`\`\`json
+{
+  "date": "保存日期",
+  "timestamp": "保存时间戳", 
+  "modelCount": "模型数量",
+  "models": [...], // 该日保存的模型数据
+  "metadata": {
+    "exportDate": "导出时间",
+    "originalDate": "原始保存时间", 
+    "appVersion": "应用版本"
+  }
+}
+\`\`\`
+
+### 汇总文件格式 (summary.json)
+\`\`\`json
+{
+  "exportInfo": {
+    "exportDate": "导出时间",
+    "totalDays": "总天数",
+    "totalModels": "总模型数",
+    "appVersion": "应用版本"
+  },
+  "dailySummary": [...], // 每日统计摘要
+  "allModels": [...] // 所有模型的完整数据
+}
+\`\`\`
+
+## 使用说明
+
+1. **单日数据恢复**: 可以单独导入某一天的JSON文件
+2. **完整数据恢复**: 使用summary.json文件可以恢复所有数据
+3. **数据分析**: 可以基于这些JSON文件进行数据分析和统计
+
+## 注意事项
+
+- 所有时间均为本地时间格式
+- 模型数据结构遵循Civitai API规范
+- 建议定期备份这些导出文件
+
+---
+*由 LORA Info Downloader v${this.CACHE_VERSION} 自动生成*
+`;
+  }
+
+  /**
    * 从JSON文件导入模型数据
    */
   static async importFromJson(file: File): Promise<LoraModel[]> {
