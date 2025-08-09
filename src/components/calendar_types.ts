@@ -15,6 +15,7 @@ export interface CalendarDay {
   totalModelCount: number; // 该日保存的模型总数量
   isCurrentMonth: boolean; // 是否属于当前显示月份
   isToday: boolean; // 是否是今天
+  isSelected?: boolean; // 是否被选中
 }
 
 /**

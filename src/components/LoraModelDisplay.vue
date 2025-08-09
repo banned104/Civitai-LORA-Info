@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, nextTick } from 'vue';
 import { getLoraModelInfo } from './info_getter';
 import type { LoraModel } from './lora_api_types';
 import ModelUrlInput from './ModelUrlInput.vue';
@@ -132,6 +132,51 @@ function autoSaveToCache() {
   }
 }
 
+// 统一的日期模型显示处理函数
+function displayModelsForDate(date: string, dayModels: LoraModel[], source: string = 'calendar') {
+  console.log(`从${source}点击日期: ${date}, 找到 ${dayModels.length} 个模型`);
+  
+  // 首先清空所有相关状态，确保干净的状态
+  error.value = null;
+  filteredModels.value = [];
+  isSearchActive.value = false;
+  
+  // 设置当前查看的日期
+  currentViewDate.value = date;
+  
+  // 更新日历组件的选中状态（只对calendar来源有效）
+  if (source === 'calendar') {
+    calendarRef.value?.setSelectedDate(date);
+  }
+  
+  // 显示该日期的模型
+  if (dayModels.length > 0) {
+    // 设置为日期查看模式
+    isSearchActive.value = true;
+    
+    // 先清空当前模型列表，再设置新的模型
+    models.value = [];
+    
+    // 使用 nextTick 确保DOM更新后再设置新数据
+    nextTick(() => {
+      models.value = [...dayModels];
+      filteredModels.value = [...dayModels];
+      
+      // 显示成功消息
+      console.log(`正在显示 ${date} 的 ${dayModels.length} 个模型`);
+    });
+  } else {
+    // 如果该日期没有模型，设置为搜索模式并显示提示信息
+    isSearchActive.value = true;
+    console.log(`${date} 没有保存的模型`);
+    error.value = `${date} 没有保存的LORA模型`;
+    
+    // 确保列表为空
+    models.value = [];
+    filteredModels.value = [];
+  }
+}
+
 // 切换日历显示
 function toggleCalendar() {
   showCalendar.value = !showCalendar.value;
@@ -144,30 +189,7 @@ function toggleDataDaysGrid() {
 
 // 处理日历日期点击
 function handleCalendarDayClick(date: string, dayModels: LoraModel[]) {
-  console.log(`点击日期: ${date}, 找到 ${dayModels.length} 个模型`);
-  
-  // 设置当前查看的日期
-  currentViewDate.value = date;
-  
-  // 直接显示该日期的模型，不合并到当前列表
-  if (dayModels.length > 0) {
-    // 替换当前显示的模型为该日期的模型
-    models.value = [...dayModels];
-    isSearchActive.value = true;
-    filteredModels.value = [...dayModels];
-    
-    // 显示成功消息
-    console.log(`正在显示 ${date} 的 ${dayModels.length} 个模型`);
-    error.value = null;
-  } else {
-    // 如果该日期没有模型，显示提示信息
-    console.log(`${date} 没有保存的模型`);
-    error.value = `${date} 没有保存的LORA模型`;
-    
-    // 清空当前显示
-    filteredModels.value = [];
-    isSearchActive.value = true;
-  }
+  displayModelsForDate(date, dayModels, 'calendar');
 };
 
 // 处理日历月份变化
@@ -177,33 +199,16 @@ function handleCalendarMonthChange(year: number, month: number) {
 
 // 处理加载日期缓存
 function handleLoadDayCache(date: string) {
-  handleCalendarDayClick(date, []);
+  const models = CacheManager.getModelsForDate(date);
+  displayModelsForDate(date, models, 'cache');
 };
 
 // 处理数据日期网格日期点击
 function handleDataDayClick(day: any, dayModels: LoraModel[]) {
-  console.log(`从数据网格点击日期: ${day.date}, 找到 ${dayModels.length} 个模型`);
+  displayModelsForDate(day.date, dayModels, 'dataGrid');
   
-  // 设置当前查看的日期
-  currentViewDate.value = day.date;
-  
-  if (dayModels.length > 0) {
-    // 显示该日期的模型
-    filteredModels.value = dayModels;
-    isSearchActive.value = true;
-    error.value = null;
-  } else {
-    // 如果该日期没有模型，显示提示信息
-    console.log(`${day.date} 没有保存的模型`);
-    error.value = `${day.date} 没有保存的LORA模型`;
-    
-    // 清空当前显示
-    filteredModels.value = [];
-    isSearchActive.value = true;
-  }
-  
-  // 关闭数据日期网格，回到主界面
-  showDataDaysGrid.value = false;
+  // 不要自动关闭数据日期网格，让用户可以继续浏览其他日期
+  // showDataDaysGrid.value = false; // 移除自动关闭
 }
 
 // 处理清除日期缓存
@@ -225,67 +230,87 @@ function handleClearDayCache(date: string) {
 
 // 处理导入JSON到指定日期
 function handleImportJsonToDate(date: string) {
-  console.log(`准备导入JSON到日期: ${date}`);
+  // 验证日期参数
+  if (!date || typeof date !== 'string') {
+    error.value = '无效的日期参数';
+    return;
+  }
   
-  // 创建隐藏的文件输入元素
-  const fileInput = document.createElement('input');
-  fileInput.type = 'file';
-  fileInput.accept = '.json';
-  fileInput.style.display = 'none';
+  console.log(`开始导入JSON到指定日期: ${date}`);
   
-  // 处理文件选择
-  fileInput.onchange = async (event) => {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.style.display = 'none';
+  
+  input.onchange = async (event: Event) => {
     const target = event.target as HTMLInputElement;
     const file = target.files?.[0];
     
-    if (!file) {
-      console.log('未选择文件');
-      return;
-    }
+    if (!file) return;
     
     try {
-      // 读取文件内容
-      const fileText = await file.text();
-      const jsonData = JSON.parse(fileText);
-      
-      // 验证JSON数据格式
-      if (!Array.isArray(jsonData) && !jsonData.models) {
-        throw new Error('JSON格式不正确，应该是模型数组或包含models字段的对象');
+      // 验证文件格式
+      if (!file.name.toLowerCase().endsWith('.json')) {
+        error.value = '请选择有效的JSON文件';
+        return;
       }
       
-      // 提取模型数据
-      const modelsToImport: LoraModel[] = Array.isArray(jsonData) ? jsonData : jsonData.models;
-      
-      if (!Array.isArray(modelsToImport) || modelsToImport.length === 0) {
-        throw new Error('JSON中没有找到有效的模型数据');
+      // 验证目标日期格式
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRegex.test(date)) {
+        error.value = `无效的日期格式: ${date}，期望格式为 YYYY-MM-DD`;
+        return;
       }
       
-      // 保存模型到指定日期
-      const success = CacheManager.saveDailyRecord(date, modelsToImport);
+      // 导入模型数据
+      const importedModels = await CacheManager.importFromJson(file);
       
-      if (success) {
-        console.log(`成功导入 ${modelsToImport.length} 个模型到 ${date}`);
-        alert(`成功导入 ${modelsToImport.length} 个模型到 ${date}`);
-        
-        // 刷新日历显示
-        calendarRef.value?.refresh();
-        dataDaysGridRef.value?.refresh();
-      } else {
-        throw new Error('保存到指定日期失败');
+      if (importedModels.length === 0) {
+        error.value = '导入的文件中没有有效的模型数据';
+        return;
       }
+      
+      // 将导入的模型记录到指定日期（不是今天）
+      CacheManager.recordDailySaveForDate(importedModels, date);
+      
+      // 合并到当前模型列表（避免重复）
+      const existingIds = new Set(models.value.map(m => m.id));
+      const newModels = importedModels.filter(m => !existingIds.has(m.id));
+      
+      if (newModels.length > 0) {
+        models.value.unshift(...newModels);
+        // 只保存到本地存储，不记录到今日（避免污染今日记录）
+        CacheManager.saveToLocalStorage(models.value);
+      }
+      
+      // 刷新日历显示
+      calendarRef.value?.refresh();
+      
+      // 清除错误状态
+      error.value = null;
+      
+      // 显示成功消息，明确说明导入到了指定日期
+      const today = new Date().toISOString().split('T')[0];
+      const isToday = date === today;
+      const dateMessage = isToday ? `${date}（今天）` : date;
+      
+      alert(`成功导入 ${importedModels.length} 个模型到 ${dateMessage}！${newModels.length > 0 ? `其中 ${newModels.length} 个是新模型。` : '所有模型已存在于当前列表中。'}`);
+      
+      console.log(`导入完成: ${importedModels.length} 个模型已记录到 ${date}，${newModels.length} 个新模型已添加到当前列表`);
       
     } catch (err: any) {
-      console.error('导入JSON失败:', err);
-      error.value = `导入JSON到 ${date} 失败: ${err.message}`;
+      console.error('导入JSON到指定日期失败:', err);
+      error.value = `导入失败: ${err.message || '未知错误'}`;
     } finally {
-      // 清理文件输入元素
-      document.body.removeChild(fileInput);
+      // 清理临时DOM元素
+      document.body.removeChild(input);
     }
   };
   
-  // 触发文件选择对话框
-  document.body.appendChild(fileInput);
-  fileInput.click();
+  // 添加到DOM并触发点击
+  document.body.appendChild(input);
+  input.click();
 }
 
 // 处理日历刷新请求
@@ -306,6 +331,9 @@ function handleClearSearch() {
   isSearchActive.value = false;
   currentViewDate.value = ''; // 清除日期查看状态
   showDataDaysGrid.value = false; // 同时关闭数据日期网格
+  
+  // 清除日历选中状态
+  calendarRef.value?.setSelectedDate('');
 }
 
 // 处理搜索快捷方式

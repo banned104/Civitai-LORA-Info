@@ -155,6 +155,7 @@ const selectedYear = ref(props.currentYear);
 const calendarDays = ref<CalendarDayType[]>([]);
 const allCalendarDays = ref<CalendarDayType[]>([]); // 保存完整的日历数据
 const showOnlyWithData = ref(false); // 筛选选项
+const selectedDate = ref<string | null>(null); // 当前选中的日期
 
 // Tooltip 相关
 const showTooltip = ref(false);
@@ -195,8 +196,14 @@ const loadCalendarData = async () => {
       props.config
     );
     
+    // 为每个日期添加选中状态
+    const updatedDays = allDays.map(day => ({
+      ...day,
+      isSelected: day.date === selectedDate.value
+    }));
+    
     // 保存完整数据
-    allCalendarDays.value = allDays;
+    allCalendarDays.value = updatedDays;
     
     // 应用筛选
     applyFilter();
@@ -218,7 +225,8 @@ const applyFilter = () => {
           ...day,
           date: '',
           isCurrentMonth: false,
-          isEmpty: true
+          isEmpty: true,
+          isSelected: false
         };
       }
       return day;
@@ -249,7 +257,17 @@ const goToNextYear = () => {
 
 const goToToday = () => {
   const today = CalendarUtils.getCurrentYearMonth();
+  const todayDateString = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  
+  // 更新月份视图
   updateMonth(today.year, today.month);
+  
+  // 设置选中今天的日期
+  selectedDate.value = todayDateString;
+  
+  // 获取今天的模型数据并发出点击事件
+  const todayModels = CacheManager.getModelsForDate(todayDateString);
+  emit('dayClick', todayDateString, todayModels);
 };
 
 const goToYear = () => {
@@ -270,7 +288,25 @@ const updateMonth = (year: number, month: number) => {
   loadCalendarData();
 };
 
+// 更新日期选中状态
+const updateDaySelections = () => {
+  // 更新 allCalendarDays
+  allCalendarDays.value = allCalendarDays.value.map(day => ({
+    ...day,
+    isSelected: day.date === selectedDate.value
+  }));
+  
+  // 重新应用筛选
+  applyFilter();
+};
+
 const onDayClick = (day: CalendarDayType) => {
+  // 更新选中状态
+  selectedDate.value = day.date;
+  
+  // 更新所有日期的选中状态
+  updateDaySelections();
+  
   // 无论是否有记录都处理点击事件
   if (day.hasRecord) {
     // 如果有记录，获取当日的所有模型
@@ -362,6 +398,11 @@ watch([currentYear, currentMonth], () => {
   loadCalendarData();
 }, { immediate: false });
 
+// 监听选中日期变化
+watch(selectedDate, () => {
+  updateDaySelections();
+});
+
 // 生命周期
 onMounted(() => {
   loadCalendarData();
@@ -371,7 +412,11 @@ onMounted(() => {
 defineExpose({
   refresh: loadCalendarData,
   goToMonth: updateMonth,
-  goToToday
+  goToToday,
+  setSelectedDate: (date: string) => {
+    selectedDate.value = date;
+    updateDaySelections();
+  }
 });
 </script>
 

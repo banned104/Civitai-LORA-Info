@@ -27,8 +27,11 @@
       <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">
         📊 有数据的日期一览
       </h2>
-      <p class="text-sm text-gray-600 dark:text-gray-400">
+      <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">
         共找到 {{ dataDays.length }} 个有LORA数据的日期
+      </p>
+      <p class="text-xs text-blue-600 dark:text-blue-400">
+        💡 点击日期块查看对应的模型，列表会保持打开状态方便您浏览多个日期
       </p>
     </div>
 
@@ -37,8 +40,11 @@
       <div
         v-for="day in dataDays"
         :key="day.date"
-        class="relative group cursor-pointer"
-        :class="{ 'ring-2 ring-blue-500 ring-opacity-50': day.date === currentViewDate }"
+        class="relative group cursor-pointer transform transition-all duration-200"
+        :class="{ 
+          'ring-2 ring-blue-500 scale-105 shadow-lg': day.date === currentViewDate,
+          'hover:scale-105': day.date !== currentViewDate
+        }"
         @click="handleDayClick(day)"
       >
         <CalendarDay

@@ -46,9 +46,16 @@ const dayClasses = computed(() => {
     classes.push('text-gray-400', 'dark:text-gray-600');
   }
   
-  // 是否是今天
-  if (props.day.isToday) {
-    classes.push('ring-2', 'ring-blue-500', 'ring-offset-1');
+  // 是否是今天和是否被选中的组合处理
+  if (props.day.isToday && props.day.isSelected) {
+    // 今天且被选中：蓝色背景 + 紫色边框
+    classes.push('ring-2', 'ring-purple-500', 'ring-offset-2', 'bg-blue-100', 'dark:bg-blue-900', 'ring-offset-white', 'dark:ring-offset-gray-900');
+  } else if (props.day.isToday) {
+    // 只是今天：蓝色背景 + 蓝色边框
+    classes.push('ring-2', 'ring-blue-500', 'ring-offset-1', 'bg-blue-50', 'dark:bg-blue-950');
+  } else if (props.day.isSelected) {
+    // 只是被选中：紫色边框
+    classes.push('ring-2', 'ring-indigo-500', 'ring-offset-2', 'ring-offset-white', 'dark:ring-offset-gray-900');
   }
   
   // 根据记录情况设置背景色

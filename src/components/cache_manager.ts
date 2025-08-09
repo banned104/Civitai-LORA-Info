@@ -399,13 +399,21 @@ ${dailyRecords.map(record =>
    * 记录今日保存的模型
    */
   static recordDailySave(models: LoraModel[]): void {
-    if (models.length === 0) return;
+    if (models.length === 0) {
+      console.warn('recordDailySave: 模型列表为空，跳过记录');
+      return;
+    }
 
     try {
       const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      console.log(`recordDailySave: 记录 ${models.length} 个模型到今日 ${today}`);
+      
       const existingData = this.getCacheDataFromStorage();
       
-      if (!existingData) return;
+      if (!existingData) {
+        console.warn('recordDailySave: 没有现有缓存数据，跳过记录');
+        return;
+      }
 
       // 找到今日的记录或创建新记录
       const todayRecordIndex = existingData.dailyRecords.findIndex(record => record.date === today);
@@ -422,6 +430,7 @@ ${dailyRecords.map(record =>
 
       if (todayRecordIndex >= 0) {
         // 更新现有记录，合并模型ID和标题
+        console.log(`recordDailySave: 更新今日现有记录 ${today}`);
         const existingRecord = existingData.dailyRecords[todayRecordIndex];
         const combinedIds = [...new Set([...existingRecord.modelIds, ...modelIds])];
         const combinedTitles = [...new Set([...existingRecord.modelTitles, ...modelTitles])];
@@ -431,74 +440,118 @@ ${dailyRecords.map(record =>
           modelIds: combinedIds,
           modelTitles: combinedTitles
         };
+        
+        console.log(`recordDailySave: 今日记录已更新，现在 ${today} 有 ${combinedIds.length} 个模型`);
       } else {
         // 添加新记录
+        console.log(`recordDailySave: 创建今日新记录 ${today}`);
         existingData.dailyRecords.push(newRecord);
+        console.log(`recordDailySave: 今日新记录已添加，${today} 有 ${modelIds.length} 个模型`);
       }
 
       // 保存更新的数据
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(existingData));
+      console.log(`recordDailySave: 成功保存到今日 ${today}`);
     } catch (error) {
       console.error('记录每日保存失败:', error);
     }
   }
 
   /**
-   * 保存模型到指定日期
+   * 记录模型到指定日期
    */
-  static saveDailyRecord(date: string, models: LoraModel[]): boolean {
-    if (models.length === 0) return false;
+  static recordDailySaveForDate(models: LoraModel[], targetDate: string): void {
+    if (models.length === 0) {
+      console.warn('recordDailySaveForDate: 模型列表为空，跳过记录');
+      return;
+    }
+
+    // 验证日期格式
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(targetDate)) {
+      console.error(`recordDailySaveForDate: 无效的日期格式: ${targetDate}`);
+      throw new Error(`无效的日期格式: ${targetDate}，期望格式为 YYYY-MM-DD`);
+    }
+
+    // 验证日期是否合理（不能是未来日期）
+    const today = new Date().toISOString().split('T')[0];
+    const targetDateObj = new Date(targetDate + 'T00:00:00');
+    const todayObj = new Date(today + 'T00:00:00');
+    
+    if (targetDateObj > todayObj) {
+      console.error(`recordDailySaveForDate: 不允许记录到未来日期: ${targetDate}`);
+      throw new Error(`不允许记录到未来日期: ${targetDate}`);
+    }
+
+    console.log(`recordDailySaveForDate: 开始记录 ${models.length} 个模型到日期 ${targetDate}`);
 
     try {
       const existingData = this.getCacheDataFromStorage();
       
-      if (!existingData) return false;
+      if (!existingData) {
+        // 如果没有现有数据，创建新的缓存数据
+        console.log('recordDailySaveForDate: 创建新的缓存数据');
+        const newData: CacheData = this.createCacheData([]);
+        newData.dailyRecords = [];
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(newData));
+      }
+
+      const cacheData = this.getCacheDataFromStorage();
+      if (!cacheData) {
+        console.error('recordDailySaveForDate: 无法获取缓存数据');
+        return;
+      }
 
       // 找到指定日期的记录或创建新记录
-      const recordIndex = existingData.dailyRecords.findIndex(record => record.date === date);
+      const targetRecordIndex = cacheData.dailyRecords.findIndex(record => record.date === targetDate);
       
       const modelIds = models.map(m => m.id);
       const modelTitles = models.map(m => m.name);
       
       const newRecord: DailySaveRecord = {
-        date: date,
+        date: targetDate,
         modelIds: modelIds,
         modelTitles: modelTitles,
         timestamp: Date.now()
       };
 
-      if (recordIndex >= 0) {
+      if (targetRecordIndex >= 0) {
         // 更新现有记录，合并模型ID和标题
-        const existingRecord = existingData.dailyRecords[recordIndex];
+        console.log(`recordDailySaveForDate: 更新现有记录 ${targetDate}`);
+        const existingRecord = cacheData.dailyRecords[targetRecordIndex];
         const combinedIds = [...new Set([...existingRecord.modelIds, ...modelIds])];
         const combinedTitles = [...new Set([...existingRecord.modelTitles, ...modelTitles])];
         
-        existingData.dailyRecords[recordIndex] = {
+        cacheData.dailyRecords[targetRecordIndex] = {
           ...newRecord,
           modelIds: combinedIds,
           modelTitles: combinedTitles
         };
+        
+        console.log(`recordDailySaveForDate: 记录已更新，现在 ${targetDate} 有 ${combinedIds.length} 个模型`);
       } else {
         // 添加新记录
-        existingData.dailyRecords.push(newRecord);
-      }
-
-      // 将导入的模型也添加到主缓存中
-      const existingModels = existingData.models || [];
-      const newModels = models.filter(model => 
-        !existingModels.some(existing => existing.id === model.id)
-      );
-      
-      if (newModels.length > 0) {
-        existingData.models = [...existingModels, ...newModels];
+        console.log(`recordDailySaveForDate: 创建新记录 ${targetDate}`);
+        cacheData.dailyRecords.push(newRecord);
+        console.log(`recordDailySaveForDate: 新记录已添加，${targetDate} 有 ${modelIds.length} 个模型`);
       }
 
       // 保存更新的数据
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(existingData));
-      return true;
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(cacheData));
+      console.log(`recordDailySaveForDate: 成功保存到 ${targetDate}，不影响其他日期的记录`);
+      
+      // 验证保存是否成功
+      const verifyData = this.getCacheDataFromStorage();
+      const verifyRecord = verifyData?.dailyRecords.find(record => record.date === targetDate);
+      if (verifyRecord) {
+        console.log(`recordDailySaveForDate: 验证成功，${targetDate} 现在有 ${verifyRecord.modelIds.length} 个模型`);
+      } else {
+        console.error(`recordDailySaveForDate: 验证失败，未找到 ${targetDate} 的记录`);
+      }
+      
     } catch (error) {
-      console.error('保存到指定日期失败:', error);
-      return false;
+      console.error('记录指定日期保存失败:', error);
+      throw error; // 重新抛出错误，让调用者知道失败了
     }
   }
 
