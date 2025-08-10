@@ -82,7 +82,17 @@ async function fetchModelInfo(modelUrl: string) {
 // 移除模型
 function removeModel(index: number) {
   if (index >= 0 && index < models.value.length) {
+    const removedModel = models.value[index];
     models.value.splice(index, 1);
+    
+    // 如果当前处于搜索状态，也要从搜索结果中移除该模型
+    if (isSearchActive.value) {
+      const filteredIndex = filteredModels.value.findIndex(m => m.id === removedModel.id);
+      if (filteredIndex !== -1) {
+        filteredModels.value.splice(filteredIndex, 1);
+      }
+    }
+    
     // 自动保存到缓存
     autoSaveToCache();
   }
