@@ -357,9 +357,22 @@ function performAdvancedSearch() {
 // 清除搜索（用户主动点击清除按钮）
 function clearSearch() {
   console.log('用户主动清除搜索框内容');
+  
+  // 清空所有搜索条件
   searchQuery.value = '';
   lastSearchQuery.value = '';
   showSuggestions.value = false;
+  advancedOptions.value = {
+    name: '',
+    description: '',
+    prompt: '',
+    negativePrompt: '',
+    creatorUsername: ''
+  };
+  trainedWordsInput.value = '';
+  tagsInput.value = '';
+  
+  // 清空搜索状态
   isSearchActive.value = false;
   searchResults.value = [];
   hasSearched.value = false;
@@ -379,9 +392,22 @@ function showAllModelsInternal() {
 // 显示全部并清除搜索（用户点击"显示全部"按钮）
 function showAllAndClearSearch() {
   console.log('用户点击显示全部，清除搜索状态');
+  
+  // 清空所有搜索条件
   searchQuery.value = '';
   lastSearchQuery.value = '';
   showSuggestions.value = false;
+  advancedOptions.value = {
+    name: '',
+    description: '',
+    prompt: '',
+    negativePrompt: '',
+    creatorUsername: ''
+  };
+  trainedWordsInput.value = '';
+  tagsInput.value = '';
+  
+  // 清空搜索状态
   searchResults.value = [];
   hasSearched.value = false;
   isSearchActive.value = false;
@@ -413,9 +439,11 @@ function clearAdvancedSearch() {
 
 // 清空当前筛选结果（保持搜索框内容）
 function clearCurrentFilter() {
-  console.log('清空当前筛选，保持搜索框内容');
+  console.log('清空当前筛选结果');
   
-  // 清空高级搜索条件，但保留主搜索框内容
+  // 清空所有搜索条件
+  searchQuery.value = '';
+  lastSearchQuery.value = '';
   advancedOptions.value = {
     name: '',
     description: '',
@@ -426,14 +454,14 @@ function clearCurrentFilter() {
   trainedWordsInput.value = '';
   tagsInput.value = '';
   
-  // 如果主搜索框有内容，重新执行基础搜索
-  if (searchQuery.value.trim()) {
-    // 不需要重置 lastSearchQuery，因为搜索词没有改变
-    performSearch();
-  } else {
-    // 如果搜索框为空，清除搜索状态
-    clearSearchStateButKeepQuery();
-  }
+  // 清空搜索状态
+  searchResults.value = [];
+  hasSearched.value = false;
+  isSearchActive.value = false;
+  showSuggestions.value = false;
+  
+  // 通知父组件清除搜索
+  emit('clearSearch');
 }
 
 // 切换高级搜索
@@ -465,14 +493,26 @@ watch(showSuggestions, (show) => {
 watch(searchQuery, (newQuery, oldQuery) => {
   // 如果搜索词被清空（从有内容变为空）
   if (oldQuery && oldQuery.trim() !== '' && (!newQuery || newQuery.trim() === '')) {
+    console.log('搜索框被清空，检查是否需要清除搜索状态');
+    
     // 检查是否还有其他搜索条件
     const hasOtherConditions = Object.values(advancedOptions.value).some(val => val.trim() !== '') ||
                               trainedWordsInput.value.trim() !== '' ||
                               tagsInput.value.trim() !== '';
     
-    // 如果没有其他搜索条件，清空搜索结果但不通知父组件
+    // 如果没有其他搜索条件，通知父组件清除搜索
     if (!hasOtherConditions) {
-      clearSearchStateButKeepQuery();
+      console.log('没有其他搜索条件，清除搜索状态并恢复默认显示');
+      searchResults.value = [];
+      hasSearched.value = false;
+      isSearchActive.value = false;
+      showSuggestions.value = false;
+      lastSearchQuery.value = '';
+      
+      // 通知父组件清除搜索
+      emit('clearSearch');
+    } else {
+      console.log('还有其他搜索条件，保持搜索状态');
     }
   }
 });

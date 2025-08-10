@@ -48,6 +48,34 @@ export class CacheManager {
   }
 
   /**
+   * 只保存模型数据，不影响日期记录
+   */
+  static saveModelsOnly(models: LoraModel[]): boolean {
+    try {
+      const existingData = this.getCacheDataFromStorage();
+      if (!existingData) {
+        // 如果没有现有数据，创建新的
+        return this.saveToLocalStorage(models);
+      }
+
+      // 保留现有的日期记录，只更新模型列表
+      existingData.models = models;
+      existingData.timestamp = Date.now();
+      existingData.metadata.totalModels = models.length;
+      existingData.metadata.exportDate = new Date().toLocaleString('zh-CN');
+
+      const jsonString = JSON.stringify(existingData);
+      localStorage.setItem(this.STORAGE_KEY, jsonString);
+      
+      console.log(`saveModelsOnly: 已保存 ${models.length} 个模型，保留了 ${existingData.dailyRecords.length} 个日期记录`);
+      return true;
+    } catch (error) {
+      console.error('保存模型到本地存储失败:', error);
+      return false;
+    }
+  }
+
+  /**
    * 从本地存储加载模型数据
    */
   static loadFromLocalStorage(): LoraModel[] | null {

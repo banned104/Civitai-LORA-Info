@@ -18,10 +18,46 @@ const emit = defineEmits<{
 
 const selectedVersion = ref<LoraModelVersion | null>(null);
 const showMarkdownPreview = ref(false);
+const showFullDescription = ref(false);
 
 // 初始化选择第一个版本
 if (props.modelInfo.modelVersions.length > 0) {
   selectedVersion.value = props.modelInfo.modelVersions[0];
+}
+
+// 计算描述是否需要展开/折叠功能
+const DESCRIPTION_TRUNCATE_LENGTH = 300; // 超过300字符就需要折叠
+const needsTruncation = computed(() => {
+  if (!props.modelInfo.description) return false;
+  // 移除HTML标签来计算纯文本长度
+  const textContent = props.modelInfo.description.replace(/<[^>]*>/g, '');
+  return textContent.length > DESCRIPTION_TRUNCATE_LENGTH;
+});
+
+// 计算要显示的描述内容
+const displayDescription = computed(() => {
+  if (!props.modelInfo.description) return '';
+  
+  if (!needsTruncation.value || showFullDescription.value) {
+    return props.modelInfo.description;
+  }
+  
+  // 截断描述并确保不会在HTML标签中间截断
+  const textContent = props.modelInfo.description.replace(/<[^>]*>/g, '');
+  const truncatedText = textContent.substring(0, DESCRIPTION_TRUNCATE_LENGTH);
+  
+  // 简单处理：如果原文包含HTML，则截断后可能破坏结构，这里采用纯文本截断
+  const plainText = props.modelInfo.description.replace(/<[^>]*>/g, '');
+  if (plainText.length <= DESCRIPTION_TRUNCATE_LENGTH) {
+    return props.modelInfo.description;
+  }
+  
+  return plainText.substring(0, DESCRIPTION_TRUNCATE_LENGTH) + '...';
+});
+
+// 切换描述显示状态
+function toggleDescription() {
+  showFullDescription.value = !showFullDescription.value;
 }
 
 // 计算生成的 Markdown 内容
@@ -218,11 +254,32 @@ defineExpose({
           <!-- 描述 -->
           <div class="space-y-2">
             <h3 class="font-semibold text-lg">📝 描述</h3>
-            <div 
-              v-if="modelInfo.description" 
-              class="text-gray-700 dark:text-gray-300 text-sm prose prose-sm dark:prose-invert max-w-none" 
-              v-html="modelInfo.description"
-            ></div>
+            <div v-if="modelInfo.description" class="relative">
+              <div 
+                class="text-gray-700 dark:text-gray-300 text-sm prose prose-sm dark:prose-invert max-w-none"
+                :class="{ 'relative overflow-hidden': needsTruncation && !showFullDescription }"
+              >
+                <div v-html="displayDescription"></div>
+                
+                <!-- 渐变遮罩 (仅在折叠状态下显示) -->
+                <div 
+                  v-if="needsTruncation && !showFullDescription"
+                  class="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white dark:from-gray-900 to-transparent pointer-events-none"
+                ></div>
+              </div>
+              
+              <!-- 展开/折叠按钮 -->
+              <button
+                v-if="needsTruncation"
+                @click="toggleDescription"
+                class="relative mt-3 px-4 py-2 bg-blue-500/10 hover:bg-blue-500/20 dark:bg-blue-400/10 dark:hover:bg-blue-400/20 text-blue-600 dark:text-blue-400 rounded-lg border border-blue-200 dark:border-blue-800 transition-all duration-200 text-sm font-medium backdrop-blur-sm"
+                :class="{ 'w-full': !showFullDescription }"
+              >
+                <span class="flex items-center justify-center gap-2">
+                  {{ showFullDescription ? 'Less ⬆️' : 'More ⬇️' }}
+                </span>
+              </button>
+            </div>
             <p v-else class="text-gray-500 text-sm">暂无描述</p>
           </div>
 

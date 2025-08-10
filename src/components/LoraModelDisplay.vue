@@ -64,10 +64,21 @@ async function fetchModelInfo(modelUrl: string) {
       } else {
         // 将新模型添加到数组开头
         models.value.unshift(data);
-        // 自动保存到缓存并记录今日保存
+        // 自动保存到缓存（这个函数内部已经包含了记录今日的操作）
         autoSaveToCache();
-        // 记录单个模型到今日
-        CacheManager.recordDailySave([data]);
+        
+        // 清除搜索状态，确保新添加的模型在主列表中显示
+        if (isSearchActive.value) {
+          isSearchActive.value = false;
+          filteredModels.value = [];
+          currentViewDate.value = '';
+        }
+        
+        // 立即刷新日历和数据网格，确保界面同步
+        nextTick(() => {
+          calendarRef.value?.refresh();
+          dataDaysGridRef.value?.refresh();
+        });
       }
     } else {
       error.value = t('fetchModelFailed');
@@ -81,20 +92,44 @@ async function fetchModelInfo(modelUrl: string) {
 
 // 移除模型
 function removeModel(index: number) {
-  if (index >= 0 && index < models.value.length) {
-    const removedModel = models.value[index];
-    models.value.splice(index, 1);
-    
-    // 如果当前处于搜索状态，也要从搜索结果中移除该模型
-    if (isSearchActive.value) {
-      const filteredIndex = filteredModels.value.findIndex(m => m.id === removedModel.id);
+  // 根据当前的显示状态确定要移除的模型
+  let modelToRemove: LoraModel | null = null;
+  
+  if (isSearchActive.value) {
+    // 在搜索/筛选模式下，从筛选结果中获取模型
+    if (index >= 0 && index < filteredModels.value.length) {
+      modelToRemove = filteredModels.value[index];
+      // 从筛选结果中移除
+      filteredModels.value.splice(index, 1);
+    }
+  } else {
+    // 在正常模式下，从主模型列表中获取模型
+    if (index >= 0 && index < models.value.length) {
+      modelToRemove = models.value[index];
+      // 从主模型列表中移除
+      models.value.splice(index, 1);
+    }
+  }
+  
+  if (modelToRemove) {
+    // 如果是从主模型列表移除，也要从筛选结果中移除（如果存在）
+    if (!isSearchActive.value) {
+      const filteredIndex = filteredModels.value.findIndex(m => m.id === modelToRemove!.id);
       if (filteredIndex !== -1) {
         filteredModels.value.splice(filteredIndex, 1);
+      }
+    } else {
+      // 如果是从筛选结果移除，也要从主模型列表中移除（如果存在）
+      const mainIndex = models.value.findIndex(m => m.id === modelToRemove!.id);
+      if (mainIndex !== -1) {
+        models.value.splice(mainIndex, 1);
       }
     }
     
     // 自动保存到缓存
     autoSaveToCache();
+    
+    console.log(`已移除模型: ${modelToRemove.name} (ID: ${modelToRemove.id})`);
   }
 }
 
@@ -147,19 +182,20 @@ function autoSaveToCache() {
     CacheManager.saveToLocalStorage(models.value);
     // 记录今日保存
     CacheManager.recordDailySave(models.value);
-    // 刷新日历
-    calendarRef.value?.refresh();
+    
+    // 使用 nextTick 确保在下一个 DOM 更新周期刷新日历
+    nextTick(() => {
+      calendarRef.value?.refresh();
+      dataDaysGridRef.value?.refresh();
+    });
   }
 }
 
 // 统一的日期模型显示处理函数
 function displayModelsForDate(date: string, dayModels: LoraModel[], source: string = 'calendar') {
+  console.log(`=== 点击日期显示处理开始 ===`);
   console.log(`从${source}点击日期: ${date}, 找到 ${dayModels.length} 个模型`);
-  
-  // 首先清空所有相关状态，确保干净的状态
-  error.value = null;
-  filteredModels.value = [];
-  isSearchActive.value = false;
+  console.log(`模型详情:`, dayModels.map(m => ({ id: m.id, name: m.name })));
   
   // 设置当前查看的日期
   currentViewDate.value = date;
@@ -171,30 +207,30 @@ function displayModelsForDate(date: string, dayModels: LoraModel[], source: stri
   
   // 显示该日期的模型
   if (dayModels.length > 0) {
-    // 设置为日期查看模式
+    // 清空错误信息
+    error.value = null;
+    
+    // 设置为日期查看模式，直接设置筛选结果
     isSearchActive.value = true;
+    filteredModels.value = [...dayModels];
     
-    // 先清空当前模型列表，再设置新的模型
-    models.value = [];
+    console.log(`=== 设置完成 ===`);
+    console.log(`isSearchActive: ${isSearchActive.value}`);
+    console.log(`filteredModels.length: ${filteredModels.value.length}`);
+    console.log(`displayModels 计算结果长度: ${displayModels.value.length}`);
     
-    // 使用 nextTick 确保DOM更新后再设置新数据
-    nextTick(() => {
-      models.value = [...dayModels];
-      filteredModels.value = [...dayModels];
-      
-      // 显示成功消息
-      console.log(`正在显示 ${date} 的 ${dayModels.length} 个模型`);
-    });
+    // 显示成功消息
+    console.log(`正在显示 ${date} 的 ${dayModels.length} 个模型`);
   } else {
-    // 如果该日期没有模型，设置为搜索模式并显示提示信息
+    // 如果该日期没有模型，设置错误信息并清空列表
     isSearchActive.value = true;
-    console.log(`${date} ${t('noModelsOnDate')}`);
+    filteredModels.value = [];
     error.value = `${date} ${t('noModelsOnDate')}`;
     
-    // 确保列表为空
-    models.value = [];
-    filteredModels.value = [];
+    console.log(`${date} ${t('noModelsOnDate')}`);
   }
+  
+  console.log(`=== 点击日期显示处理结束 ===`);
 }
 
 // 切换日历显示
@@ -300,8 +336,8 @@ function handleImportJsonToDate(date: string) {
       
       if (newModels.length > 0) {
         models.value.unshift(...newModels);
-        // 只保存到本地存储，不记录到今日（避免污染今日记录）
-        CacheManager.saveToLocalStorage(models.value);
+        // 只保存模型数据到本地存储，不影响日期记录
+        CacheManager.saveModelsOnly(models.value);
       }
       
       // 刷新日历显示
@@ -367,7 +403,7 @@ function handleSearchResults(searchResults: LoraModel[]) {
 
 // 处理清除搜索
 function handleClearSearch() {
-  console.log('清除搜索状态并恢复主模型列表');
+  console.log('清除搜索状态并恢复默认显示');
   
   // 清除搜索相关状态
   filteredModels.value = [];
@@ -381,14 +417,24 @@ function handleClearSearch() {
   // 清除日历选中状态
   calendarRef.value?.setSelectedDate('');
   
-  // 恢复当前模型列表（从缓存重新加载）
-  const cachedModels = CacheManager.loadFromLocalStorage();
-  if (cachedModels && cachedModels.length > 0) {
-    models.value = cachedModels;
-    console.log(`已恢复主模型列表: ${cachedModels.length} 个模型`);
+  // 恢复到当天的模型列表
+  const today = new Date().toISOString().split('T')[0];
+  const todayModels = CacheManager.getModelsForDate(today);
+  
+  if (todayModels && todayModels.length > 0) {
+    // 如果当天有模型，显示当天的模型
+    models.value = todayModels;
+    console.log(`已恢复到当天(${today})的模型列表: ${todayModels.length} 个模型`);
   } else {
-    models.value = [];
-    console.log('没有缓存的模型，显示空列表');
+    // 如果当天没有模型，恢复到所有缓存的模型
+    const cachedModels = CacheManager.loadFromLocalStorage();
+    if (cachedModels && cachedModels.length > 0) {
+      models.value = cachedModels;
+      console.log(`当天无模型，已恢复主模型列表: ${cachedModels.length} 个模型`);
+    } else {
+      models.value = [];
+      console.log('没有缓存的模型，显示空列表');
+    }
   }
 }
 
@@ -534,7 +580,7 @@ onMounted(() => {
         :key="model.id"
         ref="modelCardRefs"
         :model-info="model"
-        :index="models.findIndex(m => m.id === model.id)"
+        :index="index"
         @remove="removeModel"
       />
     </div>
