@@ -3,6 +3,9 @@ import { ref, computed } from 'vue';
 import type { LoraModel, LoraModelVersion } from './lora_api_types';
 import ImageCarousel from './ImageCarousel.vue';
 import { MarkdownExporter } from './markdown_exporter';
+import { useI18n } from '../i18n';
+
+const { t } = useI18n();
 
 const props = defineProps<{
   modelInfo: LoraModel;
@@ -47,9 +50,9 @@ async function copyMarkdownToClipboard() {
   if (markdownContent.value) {
     const success = await MarkdownExporter.copyToClipboard(markdownContent.value);
     if (success) {
-      alert('已复制到剪贴板！');
+      alert(t('copiedToClipboard'));
     } else {
-      alert('复制失败，请手动复制');
+      alert(t('copyFailed'));
     }
   }
 }
@@ -63,10 +66,10 @@ function openModelUrl() {
 async function copyModelId() {
   try {
     await navigator.clipboard.writeText(props.modelInfo.id.toString());
-    alert('模型ID已复制到剪贴板！');
+    alert(t('modelIdCopied'));
   } catch (error) {
-    console.error('复制失败:', error);
-    alert('复制失败，请手动复制');
+    console.error(t('copyFailed'), error);
+    alert(t('copyFailed'));
   }
 }
 
@@ -119,7 +122,7 @@ defineExpose({
           <button 
             @click="copyModelId"
             class="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors duration-200"
-            title="复制模型ID"
+            :title="t('copyModelId')"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -130,7 +133,7 @@ defineExpose({
       <button
         @click="removeModel"
         class="px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 transition text-sm"
-        title="移除此模型"
+        :title="t('removeModel')"
       >
         ✕
       </button>
@@ -142,19 +145,19 @@ defineExpose({
         @click="downloadMarkdown"
         class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition text-sm font-medium"
       >
-        📄 下载 Markdown
+        📄 {{ t('downloadMarkdown') }}
       </button>
       <button
         @click="copyMarkdownToClipboard"
         class="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition text-sm font-medium"
       >
-        📋 复制 Markdown
+        📋 {{ t('copyMarkdown') }}
       </button>
       <button
         @click="toggleMarkdownPreview"
         class="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition text-sm font-medium"
       >
-        {{ showMarkdownPreview ? '👁️ 隐藏预览' : '👁️ 预览 Markdown' }}
+        {{ showMarkdownPreview ? `👁️ ${t('hidePreview')}` : `👁️ ${t('previewMarkdown')}` }}
       </button>
     </div>
 

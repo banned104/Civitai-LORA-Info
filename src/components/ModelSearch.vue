@@ -6,7 +6,7 @@
         <input
           v-model="searchQuery"
           type="text"
-          placeholder="搜索所有历史模型数据... (输入2个字符后自动搜索，搜索词会一直保持)"
+          :placeholder="t('searchPlaceholder')"
           class="search-input"
           @input="onSearchInput"
           @keyup.enter="performSearch"
@@ -16,7 +16,7 @@
           v-if="searchQuery"
           @click="clearSearch"
           class="clear-button"
-          title="清除搜索"
+          :title="t('clearSearch')"
         >
           ✕
         </button>
@@ -24,7 +24,7 @@
           @click="performSearch"
           class="search-button"
           :disabled="isSearching"
-          title="搜索"
+          :title="t('search')"
         >
           <span v-if="isSearching" class="search-spinner">⏳</span>
           <span v-else>🔍</span>
@@ -51,20 +51,20 @@
     <div class="advanced-search" v-if="showAdvanced">
       <div class="advanced-row">
         <div class="field-group">
-          <label>模型名称:</label>
+          <label>{{ t('modelName') }}:</label>
           <input
             v-model="advancedOptions.name"
             type="text"
-            placeholder="输入模型名称"
+            :placeholder="t('modelName')"
             class="advanced-input"
           />
         </div>
         <div class="field-group">
-          <label>创建者:</label>
+          <label>{{ t('creator') }}:</label>
           <input
             v-model="advancedOptions.creatorUsername"
             type="text"
-            placeholder="输入创建者用户名"
+            :placeholder="t('creator')"
             class="advanced-input"
           />
         </div>
@@ -72,20 +72,20 @@
 
       <div class="advanced-row">
         <div class="field-group">
-          <label>正面提示词:</label>
+          <label>{{ t('positivePrompt') }}:</label>
           <input
             v-model="advancedOptions.prompt"
             type="text"
-            placeholder="搜索正面提示词内容"
+            :placeholder="t('searchPositivePrompt')"
             class="advanced-input"
           />
         </div>
         <div class="field-group">
-          <label>负面提示词:</label>
+          <label>{{ t('negativePrompt') }}:</label>
           <input
             v-model="advancedOptions.negativePrompt"
             type="text"
-            placeholder="搜索负面提示词内容"
+            :placeholder="t('searchNegativePrompt')"
             class="advanced-input"
           />
         </div>
@@ -93,11 +93,11 @@
 
       <div class="advanced-row">
         <div class="field-group full-width">
-          <label>训练词 (用逗号分隔):</label>
+          <label>{{ t('trainedWords') }} ({{ t('commaSeparated') }}):</label>
           <input
             v-model="trainedWordsInput"
             type="text"
-            placeholder="例如: character, anime, girl"
+            :placeholder="t('trainedWordsExample')"
             class="advanced-input"
           />
         </div>
@@ -105,11 +105,11 @@
 
       <div class="advanced-row">
         <div class="field-group full-width">
-          <label>标签 (用逗号分隔):</label>
+          <label>{{ t('modelTags') }} ({{ t('commaSeparated') }}):</label>
           <input
             v-model="tagsInput"
             type="text"
-            placeholder="例如: style, character, photorealistic"
+            :placeholder="t('tagsExample')"
             class="advanced-input"
           />
         </div>
@@ -117,10 +117,10 @@
 
       <div class="advanced-actions">
         <button @click="performAdvancedSearch" class="advanced-search-button">
-          🔍 高级搜索
+          🔍 {{ t('advancedSearch') }}
         </button>
         <button @click="clearAdvancedSearch" class="clear-advanced-button">
-          🗑️ 清除
+          🗑️ {{ t('clear') }}
         </button>
       </div>
     </div>
@@ -133,23 +133,23 @@
           class="toggle-advanced-button"
           :class="{ active: showAdvanced }"
         >
-          {{ showAdvanced ? '隐藏高级搜索' : '显示高级搜索' }}
+          {{ showAdvanced ? t('hideAdvancedSearch') : t('showAdvancedSearch') }}
         </button>
         
         <!-- 实时搜索提示 -->
         <div v-if="isSearching" class="search-status">
-          ⏳ 搜索中...
+          ⏳ {{ t('searching') }}...
         </div>
       </div>
       
       <div class="search-stats" v-if="hasSearched">
-        找到 {{ searchResults.length }} 个模型
+        {{ t('found') }} {{ searchResults.length }} {{ t('models') }}
         <div class="search-actions">
           <button v-if="hasActiveSearch" @click="showAllAndClearSearch" class="show-all-button">
-            显示全部
+            {{ t('showAll') }}
           </button>
           <button v-if="isSearchActive" @click="clearCurrentFilter" class="clear-filter-button">
-            🗑️ 清空筛选
+            🗑️ {{ t('clearFilter') }}
           </button>
         </div>
       </div>
@@ -161,6 +161,9 @@
 import { ref, computed, watch } from 'vue';
 import { CacheManager } from './cache_manager';
 import type { LoraModel } from './lora_api_types';
+import { useI18n } from '../i18n';
+
+const { t } = useI18n();
 
 // Props - 移除allModels依赖，改为直接从缓存获取数据
 interface Props {

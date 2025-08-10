@@ -11,6 +11,9 @@ import ModelSearch from './ModelSearch.vue';
 import SearchShortcuts from './SearchShortcuts.vue';
 import { MarkdownExporter } from './markdown_exporter';
 import { CacheManager } from './cache_manager';
+import { useI18n } from '../i18n';
+
+const { t } = useI18n();
 
 // 存储所有模型的数组
 const models = ref<LoraModel[]>([]);
@@ -57,7 +60,7 @@ async function fetchModelInfo(modelUrl: string) {
       // 检查是否已经存在相同的模型
       const existingModel = models.value.find(model => model.id === data.id);
       if (existingModel) {
-        error.value = `模型 "${data.name}" 已经存在于列表中`;
+        error.value = t('modelExists', { name: data.name });
       } else {
         // 将新模型添加到数组开头
         models.value.unshift(data);
@@ -67,10 +70,10 @@ async function fetchModelInfo(modelUrl: string) {
         CacheManager.recordDailySave([data]);
       }
     } else {
-      error.value = "获取模型信息失败，请检查控制台获取详细信息";
+      error.value = t('fetchModelFailed');
     }
   } catch (e: any) {
-    error.value = e.message || "发生未知错误";
+    error.value = e.message || t('unknownError');
   } finally {
     inputComponent.value?.setLoading(false);
   }
@@ -87,7 +90,7 @@ function removeModel(index: number) {
 
 // 清空所有模型
 function clearAllModels() {
-  if (confirm('确定要清空所有模型吗？')) {
+  if (confirm(t('clearAllModelsConfirm'))) {
     models.value = [];
     error.value = null;
     // 清除缓存
@@ -98,7 +101,7 @@ function clearAllModels() {
 // 批量导出所有模型的 Markdown
 async function exportAllModels() {
   if (models.value.length === 0) {
-    alert('没有模型可以导出');
+    alert(t('noModelsToExport'));
     return;
   }
 
@@ -114,8 +117,8 @@ async function exportAllModels() {
 
     await MarkdownExporter.exportMultipleModels(exportData);
   } catch (error) {
-    console.error('导出失败:', error);
-    alert('导出失败，请重试');
+    console.error(t('exportFailed'), error);
+    alert(t('exportFailed'));
   }
 }
 
@@ -175,8 +178,8 @@ function displayModelsForDate(date: string, dayModels: LoraModel[], source: stri
   } else {
     // 如果该日期没有模型，设置为搜索模式并显示提示信息
     isSearchActive.value = true;
-    console.log(`${date} 没有保存的模型`);
-    error.value = `${date} 没有保存的LORA模型`;
+    console.log(`${date} ${t('noModelsOnDate')}`);
+    error.value = `${date} ${t('noModelsOnDate')}`;
     
     // 确保列表为空
     models.value = [];
@@ -443,13 +446,13 @@ onMounted(() => {
         @click="toggleCalendar"
         class="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition text-sm font-medium flex items-center gap-2"
       >
-        📅 {{ showCalendar ? '隐藏日历' : '显示保存历史日历' }}
+        📅 {{ showCalendar ? t('hideCalendar') : t('showCalendar') }}
       </button>
       <button
         @click="toggleDataDaysGrid"
         class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition text-sm font-medium flex items-center gap-2"
       >
-        📊 {{ showDataDaysGrid ? '隐藏数据日期' : '有数据的日期一览' }}
+        📊 {{ showDataDaysGrid ? t('hideDataGrid') : t('showDataGrid') }}
       </button>
     </div>
 
@@ -477,7 +480,7 @@ onMounted(() => {
     
     <!-- 错误提示 -->
     <div v-if="error" class="p-4 text-sm text-red-800 rounded-lg bg-red-50 dark:bg-gray-800 dark:text-red-400" role="alert">
-      <span class="font-medium">错误!</span> {{ error }}
+      <span class="font-medium">{{ t('error') }}!</span> {{ error }}
     </div>
 
     <!-- 批量操作区域 -->
@@ -487,13 +490,13 @@ onMounted(() => {
           <span class="text-lg font-semibold">
             📋 
             <span v-if="isSearchActive">
-              搜索结果: {{ displayModels.length }} 个模型
+              {{ t('searchResults') }}: {{ displayModels.length }} {{ t('models') }}
             </span>
             <span v-else-if="currentViewDate">
-              {{ currentViewDate }} 的模型: {{ displayModels.length }} 个
+              {{ currentViewDate }} {{ t('modelsOnDate') }}: {{ displayModels.length }} {{ t('models') }}
             </span>
             <span v-else>
-              已获取 {{ models.length }} 个模型
+              {{ t('totalModels') }} {{ models.length }} {{ t('models') }}
             </span>
           </span>
         </div>
@@ -502,13 +505,13 @@ onMounted(() => {
             @click="exportAllModels"
             class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition text-sm font-medium"
           >
-            📦 批量导出 ZIP
+            📦 {{ t('batchExport') }}
           </button>
           <button
             @click="clearAllModels"
             class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition text-sm font-medium"
           >
-            🗑️ 清空所有
+            🗑️ {{ t('clearAll') }}
           </button>
         </div>
       </div>
@@ -528,14 +531,14 @@ onMounted(() => {
 
     <!-- 搜索无结果状态 -->
     <div v-if="isSearchActive && displayModels.length === 0" class="text-center p-12 bg-white dark:bg-gray-900 rounded-lg shadow-xl">
-      <p class="text-gray-500 text-lg">🔍 没有找到匹配的模型</p>
-      <p class="text-gray-400 text-sm mt-2">尝试调整搜索关键词或使用高级搜索功能</p>
+      <p class="text-gray-500 text-lg">🔍 {{ t('noSearchResults') }}</p>
+      <p class="text-gray-400 text-sm mt-2">{{ t('searchHint') }}</p>
     </div>
 
     <!-- 空状态 -->
     <div v-if="!hasModels" class="text-center p-12 bg-white dark:bg-gray-900 rounded-lg shadow-xl">
-      <p class="text-gray-500 text-lg">还没有获取任何模型信息</p>
-      <p class="text-gray-400 text-sm mt-2">请在上方输入 Civitai 模型 URL 开始获取，或从缓存/JSON文件导入已保存的模型</p>
+      <p class="text-gray-500 text-lg">{{ t('noModelsYet') }}</p>
+      <p class="text-gray-400 text-sm mt-2">{{ t('getStartedHint') }}</p>
     </div>
   </div>
 </template>

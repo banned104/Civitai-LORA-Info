@@ -6,14 +6,14 @@
         <button
           @click="goToPreviousYear"
           class="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-          title="上一年"
+          :title="t('previousYear')"
         >
           <span class="text-lg">⏪</span>
         </button>
         <button
           @click="goToPreviousMonth"
           class="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-          title="上个月"
+          :title="t('previousMonth')"
         >
           <span class="text-lg">◀</span>
         </button>
@@ -27,14 +27,14 @@
         <button
           @click="goToNextMonth"
           class="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-          title="下个月"
+          :title="t('nextMonth')"
         >
           <span class="text-lg">▶</span>
         </button>
         <button
           @click="goToNextYear"
           class="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-          title="下一年"
+          :title="t('nextYear')"
         >
           <span class="text-lg">⏩</span>
         </button>
@@ -47,7 +47,7 @@
         @click="goToToday"
         class="px-3 py-1 text-sm bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
       >
-        📅 今天
+        📅 {{ t('today') }}
       </button>
       <select
         v-model="selectedYear"
@@ -55,7 +55,7 @@
         class="px-2 py-1 text-sm border rounded-md dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200"
       >
         <option v-for="year in availableYears" :key="year" :value="year">
-          {{ year }}年
+          {{ year }}{{ t('year') }}
         </option>
       </select>
     </div>
@@ -64,11 +64,11 @@
     <div class="legend flex items-center justify-center mb-4 space-x-4 text-sm text-gray-600 dark:text-gray-400">
       <div class="flex items-center space-x-1">
         <div class="w-3 h-3 bg-gray-200 dark:bg-gray-700 rounded"></div>
-        <span>无记录</span>
+        <span>{{ t('noRecords') }}</span>
       </div>
       <div class="flex items-center space-x-1">
         <div class="w-3 h-3 bg-green-300 rounded"></div>
-        <span>有记录</span>
+        <span>{{ t('hasRecords') }}</span>
       </div>
       
       <!-- 筛选选项 -->
@@ -79,7 +79,7 @@
             type="checkbox" 
             class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
           />
-          <span class="text-sm">只显示有记录的日期</span>
+          <span class="text-sm">{{ t('showOnlyWithData') }}</span>
         </label>
       </div>
     </div>
@@ -137,6 +137,9 @@ import type { CalendarDay as CalendarDayType, CalendarProps, CalendarEmits } fro
 import CalendarDay from './CalendarDay.vue';
 import CalendarTooltip from './CalendarTooltip.vue';
 import CalendarContextMenu from './CalendarContextMenu.vue';
+import { useI18n } from '../i18n';
+
+const { t } = useI18n();
 
 // Props
 const props = withDefaults(defineProps<CalendarProps>(), {

@@ -1,5 +1,6 @@
 import type { CalendarDay, MonthInfo, CalendarConfig } from './calendar_types';
 import type { DailySaveRecord } from './cache_manager';
+import { currentLanguage } from '../i18n';
 
 /**
  * 日历工具类 - 提供日历相关的计算和格式化功能
@@ -125,6 +126,11 @@ export class CalendarUtils {
    * 格式化月份显示文本
    */
   static formatMonthDisplay(year: number, month: number): string {
+    if (currentLanguage.value === 'en') {
+      const date = new Date(year, month - 1, 1);
+      const monthName = date.toLocaleDateString('en-US', { month: 'long' });
+      return `${monthName} ${year}`;
+    }
     return `${year}年${month}月`;
   }
 
@@ -132,7 +138,9 @@ export class CalendarUtils {
    * 获取周天名称
    */
   static getWeekDayNames(firstDayOfWeek: number = 1): string[] {
-    const names = ['日', '一', '二', '三', '四', '五', '六'];
+    const names = currentLanguage.value === 'en' 
+      ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+      : ['日', '一', '二', '三', '四', '五', '六'];
     
     if (firstDayOfWeek === 0) {
       return names; // 周日开始

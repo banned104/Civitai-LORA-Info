@@ -6,8 +6,8 @@
         @click="scrollToTop"
         class="back-to-top-button"
         :class="{ 'visible': showButton }"
-        title="回到顶部"
-        aria-label="回到顶部"
+        :title="t('backToTop')"
+        :aria-label="t('backToTop')"
       >
         ⬆️
       </button>
@@ -17,6 +17,9 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
+import { useI18n } from '../i18n';
+
+const { t } = useI18n();
 
 // 响应式数据
 const showButton = ref(false);

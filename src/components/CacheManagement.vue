@@ -5,6 +5,9 @@ import { ExportManager, ExportType } from './export_manager';
 import type { LoraModel } from './lora_api_types';
 import type { ExportResult } from './export_manager';
 import ExportPanel from './ExportPanel.vue';
+import { useI18n } from '../i18n';
+
+const { t } = useI18n();
 
 const emit = defineEmits<{
   modelsLoaded: [models: LoraModel[]];
@@ -39,14 +42,14 @@ function saveToCache() {
       updateCacheStats();
       // 通知刷新日历
       emit('calendarRefresh');
-      alert(`成功缓存 ${props.models.length} 个模型到本地存储`);
+      alert(t('cacheSaved', { count: props.models.length.toString() }));
       emit('cacheUpdated');
     } else {
-      alert('缓存失败，请检查浏览器存储权限');
+      alert(t('cacheFailedPermission'));
     }
   } catch (error) {
-    console.error('缓存失败:', error);
-    alert('缓存失败，请重试');
+    console.error(t('cacheFailed'), error);
+    alert(t('cacheFailed'));
   }
 }
 
@@ -58,24 +61,24 @@ function loadFromCache() {
       // 合并现有模型和缓存模型
       const mergedModels = CacheManager.mergeModels(props.models, cachedModels);
       emit('modelsLoaded', mergedModels);
-      alert(`成功从缓存加载 ${cachedModels.length} 个模型`);
+      alert(t('cacheLoaded', { count: cachedModels.length.toString() }));
     } else {
-      alert('没有找到缓存数据');
+      alert(t('noCacheFound'));
     }
   } catch (error) {
-    console.error('加载缓存失败:', error);
-    alert('加载缓存失败，请重试');
+    console.error(t('loadCacheFailed'), error);
+    alert(t('loadCacheFailed'));
   }
 }
 
 // 清除本地缓存
 function clearCache() {
-  if (confirm('确定要清除本地缓存吗？这将删除所有已保存的模型数据和日历记录。')) {
+  if (confirm(t('clearCacheConfirm'))) {
     CacheManager.clearLocalStorage();
     updateCacheStats();
     // 通知刷新日历
     emit('calendarRefresh');
-    alert('本地缓存已清除');
+    alert(t('cacheCleared'));
     emit('cacheUpdated');
   }
 }
@@ -93,7 +96,7 @@ function closeExportPanel() {
 // 快速导出当前模型为JSON
 function quickExportJson() {
   if (!hasModelsToCache.value) {
-    alert('没有模型可以导出');
+    alert(t('noModelsToExport'));
     return;
   }
   
@@ -178,12 +181,12 @@ onMounted(() => {
 <template>
   <div class="w-full bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg shadow-xl p-6">
     <div class="flex items-center justify-between mb-4">
-      <h3 class="text-lg font-semibold">💾 缓存管理</h3>
+      <h3 class="text-lg font-semibold">💾 {{ t('cacheManagement') }}</h3>
       <div class="text-sm text-gray-500">
         <span v-if="cacheStats.hasCache">
-          缓存: {{ cacheStats.modelsCount }} 个模型 | 更新: {{ cacheStats.lastUpdated }}
+          {{ t('cache') }}: {{ cacheStats.modelsCount }} {{ t('models') }} | {{ t('updated') }}: {{ cacheStats.lastUpdated }}
         </span>
-        <span v-else>暂无缓存</span>
+        <span v-else>{{ t('noCache') }}</span>
       </div>
     </div>
 
@@ -194,9 +197,9 @@ onMounted(() => {
         @click="saveToCache"
         :disabled="!hasModelsToCache"
         class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition text-sm font-medium"
-        title="将当前模型保存到本地缓存"
+        :title="t('saveToCacheTooltip')"
       >
-        💾 保存缓存
+        💾 {{ t('saveToCache') }}
       </button>
 
       <!-- 从缓存加载 -->
@@ -204,9 +207,9 @@ onMounted(() => {
         @click="loadFromCache"
         :disabled="!cacheStats.hasCache"
         class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition text-sm font-medium"
-        title="从本地缓存加载模型"
+        :title="t('loadFromCacheTooltip')"
       >
-        📂 加载缓存
+        📂 {{ t('loadFromCache') }}
       </button>
 
       <!-- 快速导出JSON -->
@@ -214,9 +217,9 @@ onMounted(() => {
         @click="quickExportJson"
         :disabled="!hasModelsToCache"
         class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition text-sm font-medium"
-        title="快速导出当前模型为JSON文件"
+        :title="t('quickExportJsonTooltip')"
       >
-        📄 快速导出
+        📄 {{ t('quickExportJson') }}
       </button>
 
       <!-- 高级导出 -->
@@ -224,9 +227,9 @@ onMounted(() => {
         @click="exportToJson"
         :disabled="!hasModelsToCache"
         class="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition text-sm font-medium"
-        title="选择导出方式和格式"
+        :title="t('advancedExportTooltip')"
       >
-        📤 高级导出
+        📤 {{ t('advancedExport') }}
       </button>
 
       <!-- 导入JSON -->
@@ -234,10 +237,10 @@ onMounted(() => {
         @click="triggerFileImport"
         :disabled="isLoading"
         class="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition text-sm font-medium"
-        title="从JSON文件导入模型数据"
+        :title="t('importJsonTooltip')"
       >
-        <span v-if="isLoading">⏳ 导入中...</span>
-        <span v-else>📥 导入JSON</span>
+        <span v-if="isLoading">⏳ {{ t('importing') }}...</span>
+        <span v-else>📥 {{ t('importJson') }}</span>
       </button>
 
       <!-- 清除缓存 -->
@@ -245,9 +248,9 @@ onMounted(() => {
         @click="clearCache"
         :disabled="!cacheStats.hasCache"
         class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition text-sm font-medium"
-        title="清除本地缓存数据"
+        :title="t('clearCacheTooltip')"
       >
-        🗑️ 清除缓存
+        🗑️ {{ t('clearCache') }}
       </button>
     </div>
 
@@ -273,9 +276,9 @@ onMounted(() => {
 
     <!-- 状态信息 -->
     <div class="mt-4 text-xs text-gray-500 space-y-1">
-      <p>• 本地缓存使用浏览器存储，清除浏览器数据会丢失缓存</p>
-      <p>• JSON导出/导入功能可用于数据备份和跨设备同步</p>
-      <p>• 导入时会自动去重，相同ID的模型会被更新</p>
+      <p>• {{ t('localCacheNote') }}</p>
+      <p>• {{ t('jsonExportNote') }}</p>
+      <p>• {{ t('importDeduplicateNote') }}</p>
     </div>
   </div>
 </template>
