@@ -3,6 +3,7 @@ import { ref, computed } from 'vue';
 import type { LoraModel, LoraModelVersion } from './lora_api_types';
 import ImageCarousel from './ImageCarousel.vue';
 import { MarkdownExporter } from './markdown_exporter';
+import { CacheManager } from './cache_manager';
 import { useI18n } from '../i18n';
 
 const { t } = useI18n();
@@ -19,6 +20,11 @@ const emit = defineEmits<{
 const selectedVersion = ref<LoraModelVersion | null>(null);
 const showMarkdownPreview = ref(false);
 const showFullDescription = ref(false);
+
+// 备注功能相关状态
+const noteText = ref(props.modelInfo.note || '');
+const isEditingNote = ref(false);
+const originalNoteText = ref('');
 
 // 初始化选择第一个版本
 if (props.modelInfo.modelVersions.length > 0) {
@@ -116,6 +122,45 @@ function toggleMarkdownPreview() {
 function removeModel() {
   emit('remove', props.index);
 }
+
+// 备注功能方法
+function startEditingNote() {
+  originalNoteText.value = noteText.value;
+  isEditingNote.value = true;
+}
+
+function saveNote() {
+  const trimmedNote = noteText.value.trim();
+  const success = CacheManager.updateModelNote(props.modelInfo.id, trimmedNote);
+  
+  if (success) {
+    // 更新本地模型对象（虽然这不会影响原始数据，但可以在UI中反映变化）
+    props.modelInfo.note = trimmedNote;
+    props.modelInfo.noteTimestamp = Date.now();
+    isEditingNote.value = false;
+    console.log(`备注已保存: ${trimmedNote}`);
+  } else {
+    alert(t('saveNoteFailed'));
+  }
+}
+
+function cancelEditNote() {
+  noteText.value = originalNoteText.value;
+  isEditingNote.value = false;
+}
+
+function clearNote() {
+  if (confirm(t('clearNoteConfirm'))) {
+    noteText.value = '';
+    saveNote();
+  }
+}
+
+// 计算备注显示时间
+const noteTimeDisplay = computed(() => {
+  if (!props.modelInfo.noteTimestamp) return '';
+  return new Date(props.modelInfo.noteTimestamp).toLocaleString('zh-CN');
+});
 
 // 暴露方法供父组件调用
 defineExpose({
@@ -281,6 +326,78 @@ defineExpose({
               </button>
             </div>
             <p v-else class="text-gray-500 text-sm">暂无描述</p>
+          </div>
+
+          <!-- 用户备注区域 -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <h3 class="font-semibold text-lg">📝 我的备注</h3>
+              <div class="flex gap-2">
+                <button
+                  v-if="!isEditingNote"
+                  @click="startEditingNote"
+                  class="px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition"
+                  :title="t('editNote')"
+                >
+                  {{ noteText ? t('editNote') : t('addNote') }}
+                </button>
+                <button
+                  v-if="!isEditingNote && noteText"
+                  @click="clearNote"
+                  class="px-3 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600 transition"
+                  :title="t('clearNote')"
+                >
+                  {{ t('clear') }}
+                </button>
+              </div>
+            </div>
+            
+            <!-- 显示模式 -->
+            <div v-if="!isEditingNote" class="min-h-[60px]">
+              <div 
+                v-if="noteText"
+                class="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg"
+              >
+                <p class="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{{ noteText }}</p>
+                <p v-if="noteTimeDisplay" class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                  {{ t('lastUpdated') }}: {{ noteTimeDisplay }}
+                </p>
+              </div>
+              <div 
+                v-else 
+                class="p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg border-dashed"
+              >
+                <p class="text-sm text-gray-500 dark:text-gray-400 italic">{{ t('noNoteYet') }}</p>
+              </div>
+            </div>
+
+            <!-- 编辑模式 -->
+            <div v-else class="space-y-3">
+              <textarea
+                v-model="noteText"
+                rows="4"
+                class="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                :placeholder="t('noteInputPlaceholder')"
+                maxlength="500"
+              ></textarea>
+              <div class="flex justify-between items-center">
+                <span class="text-xs text-gray-500">{{ noteText.length }}/500</span>
+                <div class="flex gap-2">
+                  <button
+                    @click="saveNote"
+                    class="px-4 py-2 bg-green-500 text-white text-sm rounded hover:bg-green-600 transition"
+                  >
+                    {{ t('save') }}
+                  </button>
+                  <button
+                    @click="cancelEditNote"
+                    class="px-4 py-2 bg-gray-500 text-white text-sm rounded hover:bg-gray-600 transition"
+                  >
+                    {{ t('cancel') }}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- 版本详情 -->

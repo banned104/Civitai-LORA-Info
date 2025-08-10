@@ -777,6 +777,11 @@ ${dailyRecords.map(record =>
           return true;
         }
 
+        // 搜索用户备注
+        if (model.note?.toLowerCase().includes(searchTerm)) {
+          return true;
+        }
+
         // 搜索标签
         if (model.tags?.some(tag => tag.toLowerCase().includes(searchTerm))) {
           return true;
@@ -838,6 +843,7 @@ ${dailyRecords.map(record =>
   static advancedSearchModels(options: {
     name?: string;
     description?: string;
+    note?: string;
     trainedWords?: string[];
     prompt?: string;
     negativePrompt?: string;
@@ -859,6 +865,11 @@ ${dailyRecords.map(record =>
 
         // 按描述过滤
         if (options.description && !model.description?.toLowerCase().includes(options.description.toLowerCase())) {
+          return false;
+        }
+
+        // 按备注过滤
+        if (options.note && !model.note?.toLowerCase().includes(options.note.toLowerCase())) {
           return false;
         }
 
@@ -1009,6 +1020,60 @@ ${dailyRecords.map(record =>
     } catch (error) {
       console.error('获取搜索建议失败:', error);
       return [];
+    }
+  }
+
+  /**
+   * 更新模型备注
+   */
+  static updateModelNote(modelId: number, note: string): boolean {
+    try {
+      const cacheData = this.getCacheDataFromStorage();
+      if (!cacheData) {
+        console.error('无法加载缓存数据');
+        return false;
+      }
+
+      // 查找并更新模型
+      const model = cacheData.models.find(m => m.id === modelId);
+      if (!model) {
+        console.error(`未找到ID为 ${modelId} 的模型`);
+        return false;
+      }
+
+      // 更新备注和时间戳
+      model.note = note.trim();
+      model.noteTimestamp = Date.now();
+
+      // 更新缓存元数据
+      cacheData.timestamp = Date.now();
+      cacheData.metadata.exportDate = new Date().toLocaleString('zh-CN');
+
+      // 保存到本地存储
+      const jsonString = JSON.stringify(cacheData);
+      localStorage.setItem(this.STORAGE_KEY, jsonString);
+
+      console.log(`已更新模型 ${model.name} 的备注: ${note}`);
+      return true;
+    } catch (error) {
+      console.error('更新模型备注失败:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 获取模型备注
+   */
+  static getModelNote(modelId: number): string | null {
+    try {
+      const cacheData = this.getCacheDataFromStorage();
+      if (!cacheData) return null;
+
+      const model = cacheData.models.find(m => m.id === modelId);
+      return model?.note || null;
+    } catch (error) {
+      console.error('获取模型备注失败:', error);
+      return null;
     }
   }
 }

@@ -52,4 +52,7 @@ export interface LoraModel {
     modelVersions: LoraModelVersion[];
     tags?: string[];
     type?: string;
+    // 用户备注功能
+    note?: string;
+    noteTimestamp?: number;
 }

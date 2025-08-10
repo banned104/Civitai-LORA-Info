@@ -22,6 +22,18 @@ export class MarkdownExporter {
     lines.push(`**模型 ID**: ${model.id}`);
     lines.push('');
     
+    // 用户备注
+    if (model.note) {
+      lines.push('## 我的备注');
+      lines.push('');
+      lines.push(model.note);
+      if (model.noteTimestamp) {
+        lines.push('');
+        lines.push(`*备注时间: ${new Date(model.noteTimestamp).toLocaleString('zh-CN')}*`);
+      }
+      lines.push('');
+    }
+    
     // 描述
     if (model.description) {
       lines.push('## 描述');

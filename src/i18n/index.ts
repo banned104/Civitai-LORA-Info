@@ -160,6 +160,19 @@ const translations = {
     publishedAt: '发布时间',
     updatedAt: '更新时间',
     
+    // 备注功能
+    userNote: '我的备注',
+    addNote: '添加备注',
+    editNote: '编辑备注',
+    saveNote: '保存备注',
+    clearNote: '清除备注',
+    clearNoteConfirm: '确定要清除备注吗？',
+    searchNote: '搜索备注内容',
+    noteInputPlaceholder: '输入对此模型的备注...',
+    saveNoteFailed: '保存备注失败，请重试',
+    noNoteYet: '暂无备注，点击"添加备注"按钮来添加备注',
+    lastUpdated: '最后更新',
+    
     // 图片相关
     images: '图片',
     previewImage: '预览图片',
@@ -362,6 +375,19 @@ const translations = {
     creator: 'Creator',
     publishedAt: 'Published',
     updatedAt: 'Updated',
+    
+    // Note functionality
+    userNote: 'My Note',
+    addNote: 'Add Note',
+    editNote: 'Edit Note',
+    saveNote: 'Save Note',
+    clearNote: 'Clear Note',
+    clearNoteConfirm: 'Are you sure you want to clear the note?',
+    searchNote: 'Search note content',
+    noteInputPlaceholder: 'Enter your note for this model...',
+    saveNoteFailed: 'Failed to save note, please try again',
+    noNoteYet: 'No note yet, click "Add Note" button to add a note',
+    lastUpdated: 'Last updated',
     
     // Images
     images: 'Images',

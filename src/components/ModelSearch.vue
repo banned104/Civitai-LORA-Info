@@ -68,6 +68,15 @@
             class="advanced-input"
           />
         </div>
+        <div class="field-group">
+          <label>{{ t('userNote') }}:</label>
+          <input
+            v-model="advancedOptions.note"
+            type="text"
+            :placeholder="t('searchNote')"
+            class="advanced-input"
+          />
+        </div>
       </div>
 
       <div class="advanced-row">
@@ -194,6 +203,7 @@ const isSearching = ref(false); // 新增：搜索进行中状态
 const advancedOptions = ref({
   name: '',
   description: '',
+  note: '',
   prompt: '',
   negativePrompt: '',
   creatorUsername: ''
@@ -365,6 +375,7 @@ function clearSearch() {
   advancedOptions.value = {
     name: '',
     description: '',
+    note: '',
     prompt: '',
     negativePrompt: '',
     creatorUsername: ''
@@ -400,6 +411,7 @@ function showAllAndClearSearch() {
   advancedOptions.value = {
     name: '',
     description: '',
+    note: '',
     prompt: '',
     negativePrompt: '',
     creatorUsername: ''
@@ -422,6 +434,7 @@ function clearAdvancedSearch() {
   advancedOptions.value = {
     name: '',
     description: '',
+    note: '',
     prompt: '',
     negativePrompt: '',
     creatorUsername: ''
@@ -447,6 +460,7 @@ function clearCurrentFilter() {
   advancedOptions.value = {
     name: '',
     description: '',
+    note: '',
     prompt: '',
     negativePrompt: '',
     creatorUsername: ''
