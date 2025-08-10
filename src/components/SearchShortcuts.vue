@@ -1,11 +1,11 @@
 <template>
   <div class="search-shortcuts">
-    <h3 class="shortcuts-title">🔍 快速搜索</h3>
+    <h3 class="shortcuts-title">🔍 {{ t('quickSearch') }}</h3>
     
     <div class="shortcuts-grid">
       <!-- 按训练词搜索 -->
       <div class="shortcut-section">
-        <h4 class="section-title">🏷️ 热门训练词</h4>
+        <h4 class="section-title">🏷️ {{ t('popularTrainedWords') }}</h4>
         <div class="tags-container">
           <button
             v-for="word in popularTrainedWords"
@@ -20,7 +20,7 @@
 
       <!-- 按标签搜索 -->
       <div class="shortcut-section">
-        <h4 class="section-title">🏷️ 热门标签</h4>
+        <h4 class="section-title">🏷️ {{ t('popularTags') }}</h4>
         <div class="tags-container">
           <button
             v-for="tag in popularTags"
@@ -35,39 +35,39 @@
 
       <!-- 快速过滤 -->
       <div class="shortcut-section">
-        <h4 class="section-title">⚡ 快速过滤</h4>
+        <h4 class="section-title">⚡ {{ t('quickFilters') }}</h4>
         <div class="filter-buttons">
           <button @click="filterByRecentlyAdded" class="filter-button">
-            📅 最近添加
+            📅 {{ t('recentlyAdded') }}
           </button>
           <button @click="filterByMostImages" class="filter-button">
-            🖼️ 图片最多
+            🖼️ {{ t('mostImages') }}
           </button>
           <button @click="filterByMostTrainedWords" class="filter-button">
-            🏷️ 训练词最多
+            🏷️ {{ t('mostTrainedWords') }}
           </button>
         </div>
       </div>
 
       <!-- 统计信息 -->
       <div class="shortcut-section">
-        <h4 class="section-title">📊 统计信息</h4>
+        <h4 class="section-title">📊 {{ t('statistics') }}</h4>
         <div class="stats-grid">
           <div class="stat-item">
             <div class="stat-number">{{ totalModels }}</div>
-            <div class="stat-label">总模型数</div>
+            <div class="stat-label">{{ t('totalModels') }}</div>
           </div>
           <div class="stat-item">
             <div class="stat-number">{{ totalTrainedWords }}</div>
-            <div class="stat-label">训练词数</div>
+            <div class="stat-label">{{ t('trainedWordsCount') }}</div>
           </div>
           <div class="stat-item">
             <div class="stat-number">{{ totalImages }}</div>
-            <div class="stat-label">图片总数</div>
+            <div class="stat-label">{{ t('totalImagesCount') }}</div>
           </div>
           <div class="stat-item">
             <div class="stat-number">{{ uniqueCreators }}</div>
-            <div class="stat-label">创建者数</div>
+            <div class="stat-label">{{ t('creatorsCount') }}</div>
           </div>
         </div>
       </div>
@@ -79,6 +79,9 @@
 import { computed } from 'vue';
 import { CacheManager } from './cache_manager';
 import type { LoraModel } from './lora_api_types';
+import { useI18n } from '../i18n';
+
+const { t } = useI18n();
 
 // Props - 移除allModels依赖，改为直接从缓存获取数据
 interface Props {

@@ -25,13 +25,13 @@
     <!-- 头部标题和统计信息 -->
     <div class="mb-6">
       <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">
-        📊 有数据的日期一览
+        📊 {{ t('dataOverview') }}
       </h2>
       <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">
-        共找到 {{ dataDays.length }} 个有LORA数据的日期
+        {{ t('foundDatesWithData', { count: dataDays.length.toString() }) }}
       </p>
       <p class="text-xs text-blue-600 dark:text-blue-400">
-        💡 点击日期块查看对应的模型，列表会保持打开状态方便您浏览多个日期
+        💡 {{ t('clickDateToView') }}
       </p>
     </div>
 
@@ -65,7 +65,7 @@
           </div>
           <div class="text-xs text-gray-500 dark:text-gray-400"
                :class="{ 'text-blue-500 dark:text-blue-300': day.date === currentViewDate }">
-            {{ day.totalModelCount }} 个模型
+            {{ day.totalModelCount }} {{ t('models') }}
           </div>
         </div>
       </div>
@@ -74,7 +74,7 @@
     <!-- 空状态 -->
     <div v-else class="text-center py-12">
       <div class="text-gray-400 dark:text-gray-600 text-lg mb-2">📅</div>
-      <p class="text-gray-500 dark:text-gray-400">暂无保存的LORA数据</p>
+      <p class="text-gray-500 dark:text-gray-400">{{ t('noLoraDataSaved') }}</p>
     </div>
 
     <!-- 关闭按钮 -->
@@ -83,7 +83,7 @@
         @click="$emit('close')"
         class="px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition text-sm font-medium"
       >
-        关闭
+        {{ t('close') }}
       </button>
     </div>
   </div>
@@ -95,6 +95,9 @@ import CalendarDay from './CalendarDay.vue'
 import type { CalendarDay as CalendarDayType } from './calendar_types'
 import type { LoraModel } from './lora_api_types'
 import { CacheManager } from './cache_manager'
+import { useI18n } from '../i18n'
+
+const { t } = useI18n()
 
 // 定义组件的 props 和 emits
 interface Props {
@@ -147,13 +150,14 @@ function formatDateLabel(dateStr: string): string {
   const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
   
   if (diffDays === 0) {
-    return '今天'
+    return t('today')
   } else if (diffDays === 1) {
-    return '昨天'
+    return t('yesterday')
   } else if (diffDays < 7) {
-    return `${diffDays}天前`
+    return t('daysAgo', { count: diffDays.toString() })
   } else {
-    return date.toLocaleDateString('zh-CN', {
+    const locale = t('months') === 'months' ? 'en-US' : 'zh-CN'
+    return date.toLocaleDateString(locale, {
       month: 'short',
       day: 'numeric'
     })

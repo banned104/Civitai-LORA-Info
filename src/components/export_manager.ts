@@ -2,6 +2,46 @@ import type { LoraModel } from './lora_api_types';
 import type { DailySaveRecord } from './cache_manager';
 import { CacheManager } from './cache_manager';
 
+// 翻译辅助类型
+type TranslationFunction = (key: string, params?: Record<string, string>) => string;
+
+// 静态翻译映射 - 用于export_manager中的字符串国际化
+const translations = {
+  zh: {
+    statisticsTitle: '📊 统计信息',
+    averagePerDay: '平均每天保存',
+    modelsUnit: '个模型',
+    maxPerDay: '单日最多保存',
+    minPerDay: '单日最少保存',
+    topAuthors: '👤 热门作者 (Top 10)',
+    authorHeader: '作者',
+    modelCountHeader: '模型数量',
+    fileDescription: '📁 文件说明',
+    zipContents: '本ZIP包含以下文件:',
+    summaryFile: '本汇总文件',
+    detailedModelInfo: '的详细模型信息'
+  },
+  en: {
+    statisticsTitle: '📊 Statistics',
+    averagePerDay: 'Average saved per day',
+    modelsUnit: 'models',
+    maxPerDay: 'Maximum saved in a day',
+    minPerDay: 'Minimum saved in a day',
+    topAuthors: '👤 Top Authors (Top 10)',
+    authorHeader: 'Author',
+    modelCountHeader: 'Model Count',
+    fileDescription: '📁 File Description',
+    zipContents: 'This ZIP contains the following files:',
+    summaryFile: 'This summary file',
+    detailedModelInfo: 'detailed model information'
+  }
+};
+
+// 简单的翻译函数
+function getTranslation(key: string, language: 'zh' | 'en' = 'zh'): string {
+  return translations[language][key as keyof typeof translations.zh] || key;
+}
+
 /**
  * 导出类型枚举
  */
@@ -150,7 +190,7 @@ export class ExportManager {
     }
 
     const filename = config.filename || `daily_markdown_${new Date().toISOString().split('T')[0]}.zip`;
-    await this.exportDailyMarkdownAsZip(dailyRecords, filename);
+    await this.exportDailyMarkdownAsZip(dailyRecords, filename, 'zh'); // 暂时默认使用中文
     
     return {
       success: true,
@@ -176,7 +216,7 @@ export class ExportManager {
   /**
    * 导出按日期分组的Markdown文件为ZIP
    */
-  private static async exportDailyMarkdownAsZip(dailyRecords: DailySaveRecord[], filename: string): Promise<void> {
+  private static async exportDailyMarkdownAsZip(dailyRecords: DailySaveRecord[], filename: string, language: 'zh' | 'en' = 'zh'): Promise<void> {
     try {
       const JSZip = (await import('jszip')).default;
       const zip = new JSZip();
@@ -194,7 +234,7 @@ export class ExportManager {
       }
 
       // 生成汇总Markdown
-      const summaryMarkdown = this.generateSummaryMarkdown(dailyRecords, allModels);
+      const summaryMarkdown = this.generateSummaryMarkdown(dailyRecords, allModels, language);
       zip.file('summary.md', summaryMarkdown);
 
       // 生成并下载ZIP
@@ -278,7 +318,7 @@ export class ExportManager {
   /**
    * 生成汇总Markdown内容
    */
-  private static generateSummaryMarkdown(dailyRecords: DailySaveRecord[], allModels: LoraModel[]): string {
+  private static generateSummaryMarkdown(dailyRecords: DailySaveRecord[], allModels: LoraModel[], language: 'zh' | 'en' = 'zh'): string {
     const exportDate = new Date().toLocaleString('zh-CN');
     
     let markdown = `# LORA模型保存汇总报告\n\n`;
@@ -299,7 +339,7 @@ export class ExportManager {
         markdown += `| ${record.date} | ${record.modelIds.length} | ${saveTime} |\n`;
       });
 
-    markdown += `\n## 📊 统计信息\n\n`;
+    markdown += `\n## ${getTranslation('statisticsTitle', language)}\n\n`;
     
     // 计算一些统计信息
     const totalDays = dailyRecords.length;
@@ -307,9 +347,9 @@ export class ExportManager {
     const maxModelsInDay = Math.max(...dailyRecords.map(r => r.modelIds.length));
     const minModelsInDay = Math.min(...dailyRecords.map(r => r.modelIds.length));
     
-    markdown += `- **平均每天保存**: ${avgModelsPerDay} 个模型\n`;
-    markdown += `- **单日最多保存**: ${maxModelsInDay} 个模型\n`;
-    markdown += `- **单日最少保存**: ${minModelsInDay} 个模型\n\n`;
+    markdown += `- **${getTranslation('averagePerDay', language)}**: ${avgModelsPerDay} ${getTranslation('modelsUnit', language)}\n`;
+    markdown += `- **${getTranslation('maxPerDay', language)}**: ${maxModelsInDay} ${getTranslation('modelsUnit', language)}\n`;
+    markdown += `- **${getTranslation('minPerDay', language)}**: ${minModelsInDay} ${getTranslation('modelsUnit', language)}\n\n`;
 
     // 作者统计
     const authorStats = new Map<string, number>();
@@ -323,8 +363,8 @@ export class ExportManager {
       .slice(0, 10);
 
     if (topAuthors.length > 0) {
-      markdown += `## 👤 热门作者 (Top 10)\n\n`;
-      markdown += `| 作者 | 模型数量 |\n`;
+      markdown += `## ${getTranslation('topAuthors', language)}\n\n`;
+      markdown += `| ${getTranslation('authorHeader', language)} | ${getTranslation('modelCountHeader', language)} |\n`;
       markdown += `|------|----------|\n`;
       topAuthors.forEach(([author, count]) => {
         markdown += `| ${author} | ${count} |\n`;
@@ -332,12 +372,12 @@ export class ExportManager {
       markdown += `\n`;
     }
 
-    markdown += `## 📁 文件说明\n\n`;
-    markdown += `本ZIP包含以下文件:\n\n`;
+    markdown += `## ${getTranslation('fileDescription', language)}\n\n`;
+    markdown += `${getTranslation('zipContents', language)}\n\n`;
     dailyRecords.forEach(record => {
-      markdown += `- \`models_${record.date}.md\` - ${record.date} 的详细模型信息\n`;
+      markdown += `- \`models_${record.date}.md\` - ${record.date} ${getTranslation('detailedModelInfo', language)}\n`;
     });
-    markdown += `- \`summary.md\` - 本汇总文件\n\n`;
+    markdown += `- \`summary.md\` - ${getTranslation('summaryFile', language)}\n\n`;
 
     markdown += `---\n\n`;
     markdown += `*由 LORA Info Downloader 自动生成于 ${exportDate}*\n`;

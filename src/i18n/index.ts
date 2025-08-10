@@ -126,6 +126,10 @@ const translations = {
     dataGrid: '数据网格',
     showDataGrid: '有数据的日期一览',
     hideDataGrid: '隐藏数据日期',
+    dataOverview: '有数据的日期一览',
+    foundDatesWithData: '共找到 {count} 个有数据的日期',
+    clickDateToView: '点击日期查看详情',
+    noLoraDataSaved: '暂无保存的LORA数据',
     
     // 通用界面
     totalModels: '已获取',
@@ -170,6 +174,16 @@ const translations = {
     searchShortcuts: '搜索快捷方式',
     recentSearches: '最近搜索',
     popularTags: '热门标签',
+    quickSearch: '快速搜索',
+    popularTrainedWords: '热门训练词',
+    quickFilters: '快速过滤',
+    recentlyAdded: '最近添加',
+    mostImages: '图片最多',
+    mostTrainedWords: '训练词最多',
+    statistics: '统计信息',
+    trainedWordsCount: '训练词数',
+    totalImagesCount: '图片总数',
+    creatorsCount: '创建者数',
     
     // 语言切换
     languageSwitch: '语言',
@@ -181,10 +195,10 @@ const translations = {
     // 时间格式
     today: '今天',
     yesterday: '昨天',
-    daysAgo: '天前',
-    weeksAgo: '周前',
-    monthsAgo: '月前',
-    yearsAgo: '年前',
+    daysAgo: '{count}天前',
+    weeksAgo: '{count}周前',
+    monthsAgo: '{count}月前',
+    yearsAgo: '{count}年前',
     
     // 月份
     months: [
@@ -315,6 +329,10 @@ const translations = {
     dataGrid: 'Data Grid',
     showDataGrid: 'Show Data Dates Overview',
     hideDataGrid: 'Hide data grid',
+    dataOverview: 'Data Dates Overview',
+    foundDatesWithData: 'Found {count} dates with data',
+    clickDateToView: 'Click date to view details',
+    noLoraDataSaved: 'No LORA data saved',
     
     // General UI
     totalModels: 'Fetched',
@@ -359,6 +377,16 @@ const translations = {
     searchShortcuts: 'Search Shortcuts',
     recentSearches: 'Recent Searches',
     popularTags: 'Popular Tags',
+    quickSearch: 'Quick Search',
+    popularTrainedWords: 'Popular Trained Words',
+    quickFilters: 'Quick Filters',
+    recentlyAdded: 'Recently Added',
+    mostImages: 'Most Images',
+    mostTrainedWords: 'Most Trained Words',
+    statistics: 'Statistics',
+    trainedWordsCount: 'Trained Words',
+    totalImagesCount: 'Total Images',
+    creatorsCount: 'Creators',
     
     // Language switch
     languageSwitch: 'Language',
@@ -370,10 +398,10 @@ const translations = {
     // Time format
     today: 'Today',
     yesterday: 'Yesterday',
-    daysAgo: 'days ago',
-    weeksAgo: 'weeks ago',
-    monthsAgo: 'months ago',
-    yearsAgo: 'years ago',
+    daysAgo: '{count} days ago',
+    weeksAgo: '{count} weeks ago',
+    monthsAgo: '{count} months ago',
+    yearsAgo: '{count} years ago',
     
     // Months
     months: [
