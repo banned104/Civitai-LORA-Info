@@ -14,9 +14,9 @@ declare global {
 
 export class ImageManager {
   private static readonly MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-  private static readonly MAX_COMPRESSED_SIZE = 500 * 1024; // 500KB - 压缩后的目标大小
-  private static readonly COMPRESSION_QUALITY = 0.7; // 压缩质量
-  private static readonly MAX_DIMENSION = 1024; // 最大尺寸
+  private static readonly MAX_COMPRESSED_SIZE = 250 * 1024; // 250KB - 压缩后的目标大小（减半）
+  private static readonly COMPRESSION_QUALITY = 0.5; // 压缩质量（从0.7降到0.5）
+  private static readonly MAX_DIMENSION = 800; // 最大尺寸（从1024降到800）
   private static readonly SUPPORTED_TYPES = [
     'image/jpeg',
     'image/jpg', 
@@ -504,7 +504,7 @@ export class ImageManager {
   /**
    * 智能压缩图片（自动调整尺寸和质量）
    */
-  static async compressImage(dataUrl: string, initialQuality: number = 0.7): Promise<string> {
+  static async compressImage(dataUrl: string, initialQuality: number = 0.5): Promise<string> {
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.onload = () => {
@@ -531,12 +531,12 @@ export class ImageManager {
           const compressedSize = compressedDataUrl.split(',')[1].length * 0.75;
           
           // 如果大小合适或者质量已经很低，返回结果
-          if (compressedSize <= this.MAX_COMPRESSED_SIZE || quality <= 0.1) {
+          if (compressedSize <= this.MAX_COMPRESSED_SIZE || quality <= 0.05) {
             return compressedDataUrl;
           }
           
-          // 降低质量继续压缩
-          return tryCompress(quality - 0.1);
+          // 更激进的质量降低步长
+          return tryCompress(quality - 0.05);
         };
         
         const result = tryCompress(initialQuality);
@@ -555,7 +555,8 @@ export class ImageManager {
     let width = originalWidth;
     let height = originalHeight;
 
-    // 如果尺寸超过限制，按比例缩放
+    // 更激进的尺寸压缩策略
+    // 首先按照最大尺寸限制缩放
     if (width > this.MAX_DIMENSION || height > this.MAX_DIMENSION) {
       if (width > height) {
         height = (height * this.MAX_DIMENSION) / width;
@@ -564,6 +565,16 @@ export class ImageManager {
         width = (width * this.MAX_DIMENSION) / height;
         height = this.MAX_DIMENSION;
       }
+    }
+
+    // 对于较大的图片，进一步缩小以确保压缩效果
+    const area = width * height;
+    const maxArea = 600 * 600; // 最大面积限制
+    
+    if (area > maxArea) {
+      const scaleFactor = Math.sqrt(maxArea / area);
+      width *= scaleFactor;
+      height *= scaleFactor;
     }
 
     return { width: Math.round(width), height: Math.round(height) };
