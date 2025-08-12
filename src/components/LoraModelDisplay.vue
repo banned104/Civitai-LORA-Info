@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue';
+import { ref, computed, onMounted, nextTick, onUnmounted } from 'vue';
 import { getLoraModelInfo } from './info_getter';
 import type { LoraModel } from './lora_api_types';
 import ModelUrlInput from './ModelUrlInput.vue';
@@ -12,6 +12,8 @@ import SearchShortcuts from './SearchShortcuts.vue';
 import { MarkdownExporter } from './markdown_exporter';
 import { CacheManager } from './cache_manager';
 import { useI18n } from '../i18n';
+// 暂时注释掉时间管理器，确保基本功能正常
+// import { timeManager, type DayBoundaryEvent, TimeManager } from './time_manager';
 
 const { t } = useI18n();
 
@@ -49,42 +51,79 @@ const displayModels = computed(() => {
   return models.value;
 });
 
-// 获取模型信息
+// 获取模型信息（修复版本 - 增强错误处理）
 async function fetchModelInfo(modelUrl: string) {
   inputComponent.value?.setLoading(true);
   error.value = null;
 
   try {
-    const data = await getLoraModelInfo(modelUrl);
+    console.log(`🔍 开始获取模型信息: ${modelUrl}`);
+    
+    // 验证URL格式
+    if (!modelUrl || !modelUrl.trim()) {
+      throw new Error('请输入有效的模型URL');
+    }
+    
+    const data = await getLoraModelInfo(modelUrl.trim());
+    
     if (data) {
+      console.log(`📦 成功获取模型数据: ${data.name} (ID: ${data.id})`);
+      
       // 检查是否已经存在相同的模型
       const existingModel = models.value.find(model => model.id === data.id);
       if (existingModel) {
         error.value = t('modelExists', { name: data.name });
-      } else {
-        // 将新模型添加到数组开头
-        models.value.unshift(data);
-        // 自动保存到缓存（这个函数内部已经包含了记录今日的操作）
-        autoSaveToCache();
-        
-        // 清除搜索状态，确保新添加的模型在主列表中显示
-        if (isSearchActive.value) {
-          isSearchActive.value = false;
-          filteredModels.value = [];
-          currentViewDate.value = '';
-        }
-        
-        // 立即刷新日历和数据网格，确保界面同步
-        nextTick(() => {
-          calendarRef.value?.refresh();
-          dataDaysGridRef.value?.refresh();
-        });
+        console.log(`⚠️  模型已存在: ${data.name}`);
+        return;
       }
+      
+      console.log(`🆕 准备添加新模型: ${data.name} (ID: ${data.id})`);
+      
+      // 将新模型添加到数组开头
+      models.value.unshift(data);
+      
+      // 保存到缓存并记录到今天
+      try {
+        CacheManager.saveToLocalStorage(models.value);
+        CacheManager.recordSingleModelToday(data);
+        console.log(`✅ 新模型已保存到缓存并记录到今天: ${data.name}`);
+      } catch (saveError) {
+        console.warn('保存到缓存失败，但模型已添加到列表:', saveError);
+      }
+      
+      // 清除搜索状态，确保新添加的模型在主列表中显示
+      if (isSearchActive.value) {
+        isSearchActive.value = false;
+        filteredModels.value = [];
+        currentViewDate.value = '';
+      }
+      
+      // 立即刷新日历和数据网格，确保界面同步
+      nextTick(() => {
+        calendarRef.value?.refresh();
+        dataDaysGridRef.value?.refresh();
+      });
+      
+      console.log(`🎉 模型添加成功: ${data.name}`);
+      
     } else {
-      error.value = t('fetchModelFailed');
+      error.value = t('fetchModelFailed') + ' - 请检查URL是否正确或网络连接';
+      console.error(`❌ 获取模型信息失败: ${modelUrl}`);
     }
   } catch (e: any) {
-    error.value = e.message || t('unknownError');
+    console.error('fetchModelInfo 执行错误:', e);
+    
+    if (e.message.includes('Network Error') || e.code === 'NETWORK_ERROR') {
+      error.value = '网络连接失败，请检查网络连接或稍后重试';
+    } else if (e.response?.status === 404) {
+      error.value = '模型不存在，请检查URL是否正确';
+    } else if (e.response?.status === 403) {
+      error.value = 'API访问被拒绝，可能需要等待后重试';
+    } else if (e.response?.status >= 500) {
+      error.value = 'Civitai服务器暂时不可用，请稍后重试';
+    } else {
+      error.value = e.message || t('unknownError');
+    }
   } finally {
     inputComponent.value?.setLoading(false);
   }
@@ -176,12 +215,12 @@ function handleModelsLoaded(loadedModels: LoraModel[]) {
   calendarRef.value?.refresh();
 }
 
-// 自动保存到缓存
+// 自动保存到缓存（修复版本 - 防止重复记录）
 function autoSaveToCache() {
   if (models.value.length > 0) {
-    CacheManager.saveToLocalStorage(models.value);
-    // 记录今日保存
-    CacheManager.recordDailySave(models.value);
+    // 只保存模型数据，不操作日期记录
+    CacheManager.saveModelsOnly(models.value);
+    console.log(`🔄 自动保存完成，共 ${models.value.length} 个模型`);
     
     // 使用 nextTick 确保在下一个 DOM 更新周期刷新日历
     nextTick(() => {
@@ -284,7 +323,7 @@ function handleClearDayCache(date: string) {
   }
 }
 
-// 处理导入JSON到指定日期
+// 处理导入JSON到指定日期（简化版本）
 function handleImportJsonToDate(date: string) {
   // 验证日期参数
   if (!date || typeof date !== 'string') {
@@ -292,7 +331,7 @@ function handleImportJsonToDate(date: string) {
     return;
   }
   
-  console.log(`开始导入JSON到指定日期: ${date}`);
+  console.log(`🎯 开始导入JSON到指定日期: ${date}`);
   
   const input = document.createElement('input');
   input.type = 'file';
@@ -306,6 +345,8 @@ function handleImportJsonToDate(date: string) {
     if (!file) return;
     
     try {
+      console.log(`📁 处理文件: ${file.name}`);
+      
       // 验证文件格式
       if (!file.name.toLowerCase().endsWith('.json')) {
         error.value = '请选择有效的JSON文件';
@@ -319,6 +360,16 @@ function handleImportJsonToDate(date: string) {
         return;
       }
       
+      // 检查是否试图导入到未来日期
+      const today = new Date().toISOString().split('T')[0];
+      const targetDate = new Date(date + 'T00:00:00');
+      const todayDate = new Date(today + 'T00:00:00');
+      
+      if (targetDate > todayDate) {
+        error.value = `不允许导入到未来日期: ${date}`;
+        return;
+      }
+      
       // 导入模型数据
       const importedModels = await CacheManager.importFromJson(file);
       
@@ -327,8 +378,11 @@ function handleImportJsonToDate(date: string) {
         return;
       }
       
+      console.log(`📦 成功从文件导入 ${importedModels.length} 个模型`);
+      
       // 将导入的模型记录到指定日期（不是今天）
       CacheManager.recordDailySaveForDate(importedModels, date);
+      console.log(`📅 模型已记录到指定日期: ${date}`);
       
       // 合并到当前模型列表（避免重复）
       const existingIds = new Set(models.value.map(m => m.id));
@@ -338,22 +392,29 @@ function handleImportJsonToDate(date: string) {
         models.value.unshift(...newModels);
         // 只保存模型数据到本地存储，不影响日期记录
         CacheManager.saveModelsOnly(models.value);
+        console.log(`➕ ${newModels.length} 个新模型已添加到当前列表`);
+      } else {
+        console.log(`ℹ️  所有导入的模型都已存在于当前列表中`);
       }
       
       // 刷新日历显示
       calendarRef.value?.refresh();
+      dataDaysGridRef.value?.refresh();
       
       // 清除错误状态
       error.value = null;
       
-      // 显示成功消息，明确说明导入到了指定日期
-      const today = new Date().toISOString().split('T')[0];
+      // 显示成功消息
       const isToday = date === today;
       const dateMessage = isToday ? `${date}（今天）` : date;
+      const message = `成功导入 ${importedModels.length} 个模型到 ${dateMessage}！`;
+      const details = newModels.length > 0 
+        ? `其中 ${newModels.length} 个是新模型已添加到当前列表。` 
+        : '所有模型已存在于当前列表中。';
       
-      alert(`成功导入 ${importedModels.length} 个模型到 ${dateMessage}！${newModels.length > 0 ? `其中 ${newModels.length} 个是新模型。` : '所有模型已存在于当前列表中。'}`);
+      alert(message + details);
       
-      console.log(`导入完成: ${importedModels.length} 个模型已记录到 ${date}，${newModels.length} 个新模型已添加到当前列表`);
+      console.log(`✅ 导入完成: ${importedModels.length} 个模型已记录到 ${date}，${newModels.length} 个新模型已添加到当前列表`);
       
     } catch (err: any) {
       console.error('导入JSON到指定日期失败:', err);
@@ -456,8 +517,9 @@ function handleQuickAdvancedSearch(options: any) {
   }
 }
 
-// 组件挂载时尝试加载缓存
+// 组件挂载时的初始化
 onMounted(() => {
+  // 加载缓存模型
   const cachedModels = CacheManager.loadFromLocalStorage();
   if (cachedModels && cachedModels.length > 0) {
     models.value = cachedModels;

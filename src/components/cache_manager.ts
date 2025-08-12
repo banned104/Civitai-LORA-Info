@@ -424,65 +424,102 @@ ${dailyRecords.map(record =>
   }
 
   /**
-   * 记录今日保存的模型
+   * 记录今日保存的模型（已废弃，请使用 recordNewModelsToday）
+   * @deprecated 使用 recordNewModelsToday 替代，避免重复记录整个模型列表
    */
   static recordDailySave(models: LoraModel[]): void {
-    if (models.length === 0) {
-      console.warn('recordDailySave: 模型列表为空，跳过记录');
+    console.warn('⚠️  recordDailySave 方法已废弃，建议使用 recordNewModelsToday 方法');
+    this.recordNewModelsToday(models);
+  }
+
+  /**
+   * 记录今日新增的模型（修复版本）
+   * 只记录真正新增的模型，避免重复记录
+   */
+  static recordNewModelsToday(newModels: LoraModel[]): void {
+    if (newModels.length === 0) {
+      console.warn('recordNewModelsToday: 新模型列表为空，跳过记录');
       return;
     }
 
     try {
       const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-      console.log(`recordDailySave: 记录 ${models.length} 个模型到今日 ${today}`);
+      console.log(`recordNewModelsToday: 准备记录 ${newModels.length} 个新模型到今日 ${today}`);
       
       const existingData = this.getCacheDataFromStorage();
       
       if (!existingData) {
-        console.warn('recordDailySave: 没有现有缓存数据，跳过记录');
+        console.warn('recordNewModelsToday: 没有现有缓存数据，创建新数据');
+        const newData: CacheData = this.createCacheData([]);
+        newData.dailyRecords = [];
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(newData));
+      }
+
+      const cacheData = this.getCacheDataFromStorage();
+      if (!cacheData) {
+        console.error('recordNewModelsToday: 无法获取缓存数据');
         return;
       }
 
       // 找到今日的记录或创建新记录
-      const todayRecordIndex = existingData.dailyRecords.findIndex(record => record.date === today);
+      const todayRecordIndex = cacheData.dailyRecords.findIndex(record => record.date === today);
       
-      const modelIds = models.map(m => m.id);
-      const modelTitles = models.map(m => m.name);
+      const newModelIds = newModels.map(m => m.id);
+      const newModelTitles = newModels.map(m => m.name);
       
-      const newRecord: DailySaveRecord = {
-        date: today,
-        modelIds: modelIds,
-        modelTitles: modelTitles,
-        timestamp: Date.now()
-      };
-
       if (todayRecordIndex >= 0) {
-        // 更新现有记录，合并模型ID和标题
-        console.log(`recordDailySave: 更新今日现有记录 ${today}`);
-        const existingRecord = existingData.dailyRecords[todayRecordIndex];
-        const combinedIds = [...new Set([...existingRecord.modelIds, ...modelIds])];
-        const combinedTitles = [...new Set([...existingRecord.modelTitles, ...modelTitles])];
+        // 更新现有记录，只添加新的模型ID和标题
+        console.log(`recordNewModelsToday: 更新今日现有记录 ${today}`);
+        const existingRecord = cacheData.dailyRecords[todayRecordIndex];
         
-        existingData.dailyRecords[todayRecordIndex] = {
-          ...newRecord,
-          modelIds: combinedIds,
-          modelTitles: combinedTitles
-        };
+        // 过滤出真正新增的模型
+        const reallyNewIds: number[] = [];
+        const reallyNewTitles: string[] = [];
         
-        console.log(`recordDailySave: 今日记录已更新，现在 ${today} 有 ${combinedIds.length} 个模型`);
+        newModelIds.forEach((id, index) => {
+          if (!existingRecord.modelIds.includes(id)) {
+            reallyNewIds.push(id);
+            reallyNewTitles.push(newModelTitles[index]);
+          }
+        });
+        
+        if (reallyNewIds.length > 0) {
+          existingRecord.modelIds.push(...reallyNewIds);
+          existingRecord.modelTitles.push(...reallyNewTitles);
+          existingRecord.timestamp = Date.now();
+          
+          console.log(`recordNewModelsToday: 今日记录已更新，新增 ${reallyNewIds.length} 个模型，现在 ${today} 总共有 ${existingRecord.modelIds.length} 个模型`);
+        } else {
+          console.log(`recordNewModelsToday: 所有模型都已存在于今日记录中，无需更新`);
+          return;
+        }
       } else {
         // 添加新记录
-        console.log(`recordDailySave: 创建今日新记录 ${today}`);
-        existingData.dailyRecords.push(newRecord);
-        console.log(`recordDailySave: 今日新记录已添加，${today} 有 ${modelIds.length} 个模型`);
+        console.log(`recordNewModelsToday: 创建今日新记录 ${today}`);
+        const newRecord: DailySaveRecord = {
+          date: today,
+          modelIds: newModelIds,
+          modelTitles: newModelTitles,
+          timestamp: Date.now()
+        };
+        cacheData.dailyRecords.push(newRecord);
+        console.log(`recordNewModelsToday: 今日新记录已添加，${today} 有 ${newModelIds.length} 个模型`);
       }
 
       // 保存更新的数据
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(existingData));
-      console.log(`recordDailySave: 成功保存到今日 ${today}`);
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(cacheData));
+      console.log(`recordNewModelsToday: 成功保存到今日 ${today}`);
+      
     } catch (error) {
-      console.error('记录每日保存失败:', error);
+      console.error('记录今日新模型失败:', error);
     }
+  }
+
+  /**
+   * 记录单个新模型到今天
+   */
+  static recordSingleModelToday(model: LoraModel): void {
+    this.recordNewModelsToday([model]);
   }
 
   /**

@@ -37,8 +37,9 @@ function saveToCache() {
   try {
     const success = CacheManager.saveToLocalStorage(props.models);
     if (success) {
-      // 记录今日保存
-      CacheManager.recordDailySave(props.models);
+      console.log(`💾 手动保存了 ${props.models.length} 个模型到缓存`);
+      // 注意：手动保存不应该记录到今天，因为这些模型可能不是今天添加的
+      // 只有在添加新模型时才记录到今天
       updateCacheStats();
       // 通知刷新日历
       emit('calendarRefresh');
@@ -145,15 +146,25 @@ async function importFromJson(event: Event) {
       return;
     }
     
+    console.log(`📦 从JSON文件导入了 ${importedModels.length} 个模型`);
+    
     // 合并导入的模型和现有模型
     const mergedModels = CacheManager.mergeModels(props.models, importedModels);
     emit('modelsLoaded', mergedModels);
     
-    // 保存合并后的模型到缓存
-    CacheManager.saveToLocalStorage(mergedModels);
+    // 只保存模型数据，不自动记录到今天
+    CacheManager.saveModelsOnly(mergedModels);
     
-    // 记录今日导入的模型到日历
-    CacheManager.recordDailySave(importedModels);
+    // 只记录真正新增的模型到今天（修复版本）
+    const existingIds = new Set(props.models.map(m => m.id));
+    const reallyNewModels = importedModels.filter(m => !existingIds.has(m.id));
+    
+    if (reallyNewModels.length > 0) {
+      CacheManager.recordNewModelsToday(reallyNewModels);
+      console.log(`📅 已将 ${reallyNewModels.length} 个新模型记录到今天`);
+    } else {
+      console.log(`ℹ️  所有导入的模型都已存在，无需记录到今天`);
+    }
     
     // 更新缓存统计
     updateCacheStats();
@@ -161,7 +172,11 @@ async function importFromJson(event: Event) {
     // 通知刷新日历
     emit('calendarRefresh');
     
-    alert(`成功导入 ${importedModels.length} 个模型`);
+    const message = reallyNewModels.length > 0 
+      ? `成功导入 ${importedModels.length} 个模型，其中 ${reallyNewModels.length} 个是新模型已记录到今天`
+      : `成功导入 ${importedModels.length} 个模型，所有模型都已存在`;
+    
+    alert(message);
   } catch (error) {
     console.error('导入失败:', error);
     alert(error instanceof Error ? error.message : '导入失败，请检查文件格式');
