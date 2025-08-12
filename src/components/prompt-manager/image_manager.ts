@@ -36,11 +36,21 @@ export class ImageManager {
    */
   private static async importTauriModule(moduleName: string): Promise<any> {
     try {
-      // 使用eval来避免TypeScript编译时检查
-      const moduleImport = new Function('moduleName', `
-        return import(moduleName).catch(() => null);
-      `);
-      return await moduleImport(moduleName);
+      if (!this.isTauriEnv()) {
+        return null;
+      }
+      // 直接从window.__TAURI__获取模块
+      const tauri = window.__TAURI__;
+      switch (moduleName) {
+        case '@tauri-apps/api/path':
+          return tauri.path || null;
+        case '@tauri-apps/api/fs':
+          return tauri.fs || null;
+        case '@tauri-apps/api/clipboard':
+          return tauri.clipboard || null;
+        default:
+          return null;
+      }
     } catch {
       return null;
     }
@@ -95,6 +105,29 @@ export class ImageManager {
    */
   static async createImageFromClipboard(): Promise<PromptImage | null> {
     try {
+      // 首先尝试Tauri的剪贴板API
+      if (this.isTauriEnv()) {
+        return await this.readImageFromTauriClipboard();
+      }
+
+      // Web环境下使用Clipboard API
+      if (!navigator.clipboard) {
+        console.warn('浏览器不支持剪贴板API');
+        return null;
+      }
+
+      // 请求剪贴板权限
+      try {
+        const permission = await navigator.permissions.query({ name: 'clipboard-read' as PermissionName });
+        if (permission.state === 'denied') {
+          throw new Error('剪贴板读取权限被拒绝');
+        }
+      } catch (permissionError) {
+        console.warn('无法检查剪贴板权限:', permissionError);
+        // 继续尝试，某些浏览器可能不支持权限检查
+      }
+
+      // 尝试读取剪贴板
       const clipboardItems = await navigator.clipboard.read();
       
       for (const clipboardItem of clipboardItems) {
@@ -110,6 +143,79 @@ export class ImageManager {
       return null;
     } catch (error) {
       console.warn('从剪贴板读取图片失败:', error);
+      
+      // 如果是权限错误，提供更有用的错误信息
+      if (error instanceof Error) {
+        if (error.message.includes('permission') || error.message.includes('denied')) {
+          throw new Error('剪贴板读取被拒绝。请在浏览器设置中允许剪贴板访问，或使用 https:// 协议访问。');
+        }
+        if (error.message.includes('secure context')) {
+          throw new Error('剪贴板功能需要安全上下文(HTTPS)。请使用 https:// 协议访问或在本地主机测试。');
+        }
+      }
+      
+      throw new Error('无法从剪贴板读取图片。请确保剪贴板中有图片数据并且浏览器支持此功能。');
+    }
+  }
+
+  /**
+   * 从DataURL创建图片对象
+   */
+  static async createImageFromDataUrl(dataUrl: string, fileName: string): Promise<PromptImage> {
+    // 从DataURL获取文件信息
+    const type = this.getTypeFromDataUrl(dataUrl);
+    const base64Data = dataUrl.split(',')[1];
+    const binaryData = atob(base64Data);
+    const size = binaryData.length;
+
+    const imageId = this.generateImageId();
+
+    const promptImage: PromptImage = {
+      id: imageId,
+      name: fileName,
+      type: type,
+      size: size,
+      dataUrl: dataUrl,
+      createdAt: Date.now()
+    };
+
+    // 在Tauri环境下保存到本地
+    if (this.isTauriEnv()) {
+      try {
+        const localPath = await this.saveImageToLocal(imageId, dataUrl, fileName);
+        promptImage.localPath = localPath;
+      } catch (error) {
+        console.warn('保存图片到本地失败，使用内存存储:', error);
+      }
+    }
+
+    return promptImage;
+  }
+
+  /**
+   * 从Tauri剪贴板读取图片
+   */
+  private static async readImageFromTauriClipboard(): Promise<PromptImage | null> {
+    try {
+      const clipboardApi = await this.importTauriModule('@tauri-apps/api/clipboard');
+      if (!clipboardApi) {
+        console.warn('Tauri剪贴板API不可用');
+        return null;
+      }
+
+      // 尝试读取剪贴板内容
+      const clipboardText = await clipboardApi.readText();
+      if (clipboardText && clipboardText.startsWith('data:image/')) {
+        // 如果剪贴板包含base64图片数据
+        const type = this.getTypeFromDataUrl(clipboardText);
+        const fileName = `clipboard_${Date.now()}.${this.getExtensionFromType(type)}`;
+        return await this.createImageFromDataUrl(clipboardText, fileName);
+      }
+
+      // TODO: 在Tauri 2.0+中可能有直接的图片读取API
+      return null;
+    } catch (error) {
+      console.warn('从Tauri剪贴板读取失败:', error);
       return null;
     }
   }
@@ -243,15 +349,26 @@ export class ImageManager {
         throw new Error('Tauri API不可用');
       }
 
-      const { appDataDir, join } = pathApi;
-      const { createDir, writeBinaryFile } = fsApi;
+      const { appDir, join, resolve } = pathApi;
+      const { createDir, writeBinaryFile, exists } = fsApi;
       
-      // 获取应用数据目录
-      const appDir = await appDataDir();
-      const userImageDir = await join(appDir, 'user_images');
+      // 尝试使用当前工作目录，如果失败则使用应用程序目录
+      let baseDir;
+      try {
+        // 首先尝试获取当前工作目录
+        baseDir = await resolve('./');
+      } catch {
+        // 如果失败，使用应用程序目录
+        baseDir = await appDir();
+      }
+      
+      const userImageDir = await join(baseDir, 'user_images');
       
       // 确保目录存在
-      await createDir(userImageDir, { recursive: true });
+      const dirExists = await exists(userImageDir);
+      if (!dirExists) {
+        await createDir(userImageDir, { recursive: true });
+      }
       
       // 生成文件名
       const extension = this.getExtensionFromType(this.getTypeFromDataUrl(dataUrl));

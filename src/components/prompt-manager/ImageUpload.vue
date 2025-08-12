@@ -120,6 +120,119 @@ const error = ref<string>('')
 const isLoading = ref(false)
 const fileInput = ref<HTMLInputElement>()
 
+// 检查是否在Tauri环境
+const isTauriEnv = () => {
+  return typeof window !== 'undefined' && window.__TAURI__ !== undefined
+}
+
+// Tauri文件拖拽监听器
+let unlistenFileDrop: (() => void) | null = null
+
+// 组件挂载时设置Tauri事件监听
+onMounted(async () => {
+  if (isTauriEnv()) {
+    await setupTauriFileDropListener()
+  }
+})
+
+// 组件卸载时清理监听器
+onUnmounted(() => {
+  if (unlistenFileDrop) {
+    unlistenFileDrop()
+  }
+})
+
+// 设置Tauri文件拖拽监听
+const setupTauriFileDropListener = async () => {
+  try {
+    const tauri = window.__TAURI__
+    if (tauri && tauri.event) {
+      // 监听文件拖拽事件
+      unlistenFileDrop = await tauri.event.listen('tauri://file-drop', async (event: any) => {
+        if (props.disabled) return
+        
+        const filePaths = event.payload as string[]
+        console.log('Tauri文件拖拽:', filePaths)
+        
+        // 过滤出图片文件
+        const imageFiles = filePaths.filter(path => {
+          const ext = path.toLowerCase().split('.').pop()
+          return ext && ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(ext)
+        })
+        
+        if (imageFiles.length > 0) {
+          await processTauriDroppedFiles(imageFiles)
+        }
+      })
+      
+      // 监听拖拽进入事件
+      await tauri.event.listen('tauri://file-drop-hover', () => {
+        if (!props.disabled) {
+          isDragOver.value = true
+        }
+      })
+      
+      // 监听拖拽离开事件
+      await tauri.event.listen('tauri://file-drop-cancelled', () => {
+        isDragOver.value = false
+      })
+    }
+  } catch (error) {
+    console.warn('设置Tauri文件拖拽监听失败:', error)
+  }
+}
+
+// 处理Tauri拖拽的文件
+const processTauriDroppedFiles = async (filePaths: string[]) => {
+  error.value = ''
+  isLoading.value = true
+  isDragOver.value = false
+
+  try {
+    const newImages: PromptImage[] = []
+    
+    for (const filePath of filePaths) {
+      try {
+        // 使用Tauri的fs API读取文件
+        const tauri = window.__TAURI__
+        if (tauri && tauri.fs) {
+          const fileData = await tauri.fs.readBinaryFile(filePath)
+          const fileName = filePath.split(/[/\\]/).pop() || 'unknown'
+          const ext = fileName.toLowerCase().split('.').pop()
+          const mimeType = ext ? `image/${ext === 'jpg' ? 'jpeg' : ext}` : 'image/jpeg'
+          
+          // 转换为base64 DataURL
+          const base64 = btoa(String.fromCharCode(...new Uint8Array(fileData)))
+          const dataUrl = `data:${mimeType};base64,${base64}`
+          
+          // 创建图片对象
+          const image = await ImageManager.createImageFromDataUrl(dataUrl, fileName)
+          newImages.push(image)
+        }
+      } catch (err) {
+        console.error(`处理文件 ${filePath} 失败:`, err)
+      }
+    }
+    
+    if (newImages.length > 0) {
+      const updatedImages = [...images.value, ...newImages]
+      updateImages(updatedImages)
+      
+      // 触发事件
+      newImages.forEach(image => {
+        emit('image-added', image)
+      })
+      
+      console.log(`成功添加 ${newImages.length} 张图片`)
+    }
+  } catch (err: any) {
+    error.value = err.message || '处理拖拽文件失败'
+    emit('error', error.value)
+  } finally {
+    isLoading.value = false
+  }
+}
+
 // 监听数据变化
 const updateImages = (newImages: PromptImage[]) => {
   images.value = newImages
@@ -207,24 +320,45 @@ const processFiles = async (files: FileList) => {
 
 // 剪贴板处理
 const handlePaste = async (e: ClipboardEvent) => {
-  if (props.disabled || !e.clipboardData) return
+  if (props.disabled) return
 
   error.value = ''
   isLoading.value = true
 
   try {
-    const image = await ImageManager.createImageFromClipboard()
+    let image: PromptImage | null = null
+    
+    // 首先尝试从剪贴板事件中获取图片
+    if (e.clipboardData) {
+      const items = Array.from(e.clipboardData.items)
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile()
+          if (file) {
+            image = await ImageManager.createImageFromFile(file)
+            break
+          }
+        }
+      }
+    }
+    
+    // 如果失败，尝试使用ImageManager的剪贴板方法
+    if (!image) {
+      image = await ImageManager.createImageFromClipboard()
+    }
+    
     if (image) {
       const updatedImages = [...images.value, image]
       updateImages(updatedImages)
       emit('image-added', image)
-      console.log('从剪贴板添加图片成功')
+      console.log('成功从剪贴板添加图片')
     } else {
-      error.value = '剪贴板中没有图片数据'
+      error.value = '剪贴板中没有找到图片，请确保已复制图片文件到剪贴板'
     }
   } catch (err: any) {
     error.value = err.message || '从剪贴板读取图片失败'
     emit('error', error.value)
+    console.error('剪贴板粘贴失败:', err)
   } finally {
     isLoading.value = false
   }
