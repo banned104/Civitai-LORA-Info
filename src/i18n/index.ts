@@ -228,6 +228,8 @@ const translations = {
     // 导出功能
     exportDescription: '将您的 Prompt 数据导出为 JSON 格式，便于备份和分享',
     exportAll: '导出全部',
+    exportAsZip: '导出为 ZIP',
+    importFromZip: '导入 ZIP',
     exportByDate: '按日期导出',
     exportPromptSuccess: '成功导出 {count} 个 Prompt',
     exportByDateSuccess: '成功导出 {count} 个日期的 Prompt',
@@ -505,6 +507,8 @@ const translations = {
     // Export functionality
     exportDescription: 'Export your Prompt data as JSON format for backup and sharing',
     exportAll: 'Export All',
+    exportAsZip: 'Export as ZIP',
+    importFromZip: 'Import ZIP',
     exportByDate: 'Export by Date',
     exportPromptSuccess: 'Successfully exported {count} prompts',
     exportByDateSuccess: 'Successfully exported prompts from {count} dates',

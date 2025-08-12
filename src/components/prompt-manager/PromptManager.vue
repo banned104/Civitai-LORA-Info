@@ -166,7 +166,17 @@
           :disabled="totalPrompts === 0"
         >
           <span class="export-icon">📦</span>
-          <span class="export-label">{{ t('exportAll') }}</span>
+          <span class="export-label">{{ t('exportAll') }} (JSON)</span>
+          <span class="export-count">({{ totalPrompts }} {{ t('prompts') }})</span>
+        </button>
+        
+        <button 
+          @click="exportAllPromptsAsZip" 
+          class="export-btn export-zip-btn"
+          :disabled="totalPrompts === 0"
+        >
+          <span class="export-icon">🗜️</span>
+          <span class="export-label">{{ t('exportAll') }} (ZIP)</span>
           <span class="export-count">({{ totalPrompts }} {{ t('prompts') }})</span>
         </button>
         
@@ -179,6 +189,17 @@
           <span class="export-label">{{ t('exportByDate') }}</span>
           <span class="export-count">({{ datesWithPrompts.length }} {{ t('dates') }})</span>
         </button>
+        
+        <label class="import-btn">
+          <span class="export-icon">📥</span>
+          <span class="export-label">{{ t('importFromZip') }}</span>
+          <input
+            type="file"
+            accept=".zip"
+            @change="handleZipImport"
+            style="display: none;"
+          />
+        </label>
       </div>
       
       <div v-if="exportStatus" class="export-status" :class="exportStatus.type">
@@ -194,6 +215,7 @@ import PromptInputForm from './PromptInputForm.vue';
 import PromptCard from './PromptCard.vue';
 import PromptCalendar from './PromptCalendar.vue';
 import { PromptCacheManager } from './prompt_cache_manager';
+import { ZipExportManager } from './zip_export_manager';
 import type { PromptEntry } from './prompt_types';
 import { useI18n } from '../../i18n';
 
@@ -216,7 +238,7 @@ const showCalendar = ref(true);
 const showDateBlocks = ref(false);
 
 // 导出状态
-const exportStatus = ref<{ type: 'success' | 'error'; message: string } | null>(null);
+const exportStatus = ref<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
 
 // 计算属性
 const displayPrompts = computed(() => {
@@ -395,6 +417,87 @@ function exportAllPrompts() {
   } catch (error) {
     console.error('导出失败:', error);
     exportStatus.value = { type: 'error', message: t('exportPromptFailed') };
+  }
+}
+
+// ZIP导出功能
+async function exportAllPromptsAsZip() {
+  try {
+    if (allPrompts.value.length === 0) {
+      exportStatus.value = { type: 'error', message: t('noPromptsToExport') };
+      return;
+    }
+    
+    exportStatus.value = { type: 'info', message: '正在准备ZIP文件...' };
+    
+    const filename = `all_prompts_${new Date().toISOString().split('T')[0]}`;
+    await ZipExportManager.exportToZip(allPrompts.value, filename);
+    
+    exportStatus.value = { type: 'success', message: `成功导出 ${allPrompts.value.length} 个Prompt到ZIP文件` };
+    
+    // 3秒后清除状态
+    setTimeout(() => {
+      exportStatus.value = null;
+    }, 3000);
+  } catch (error) {
+    console.error('ZIP导出失败:', error);
+    exportStatus.value = { type: 'error', message: '导出ZIP文件失败: ' + (error instanceof Error ? error.message : '未知错误') };
+  }
+}
+
+// ZIP导入功能
+async function handleZipImport(event: Event) {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  
+  if (!file) return;
+  
+  try {
+    exportStatus.value = { type: 'info', message: '正在导入ZIP文件...' };
+    
+    // 验证文件格式
+    const isValidZip = await ZipExportManager.validateZipFile(file);
+    if (!isValidZip) {
+      exportStatus.value = { type: 'error', message: '无效的ZIP文件格式' };
+      return;
+    }
+    
+    // 导入数据
+    const importedPrompts = await ZipExportManager.importFromZip(file);
+    
+    if (importedPrompts.length === 0) {
+      exportStatus.value = { type: 'error', message: 'ZIP文件中没有找到有效的Prompt数据' };
+      return;
+    }
+    
+    // 保存导入的Prompt
+    for (const prompt of importedPrompts) {
+      PromptCacheManager.addPrompt(prompt.title || '', prompt.prompt, prompt.images);
+    }
+    
+    // 重新加载数据
+    loadPrompts();
+    
+    exportStatus.value = { type: 'success', message: `成功导入 ${importedPrompts.length} 个Prompt` };
+    
+    // 清空文件输入
+    target.value = '';
+    
+    // 刷新日历
+    nextTick(() => {
+      calendarRef.value?.refresh();
+    });
+    
+    // 3秒后清除状态
+    setTimeout(() => {
+      exportStatus.value = null;
+    }, 3000);
+  } catch (error) {
+    console.error('ZIP导入失败:', error);
+    exportStatus.value = { type: 'error', message: '导入ZIP文件失败: ' + (error instanceof Error ? error.message : '未知错误') };
+    
+    // 清空文件输入
+    target.value = '';
   }
 }
 

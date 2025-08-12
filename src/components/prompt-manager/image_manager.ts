@@ -14,6 +14,9 @@ declare global {
 
 export class ImageManager {
   private static readonly MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+  private static readonly MAX_COMPRESSED_SIZE = 500 * 1024; // 500KB - 压缩后的目标大小
+  private static readonly COMPRESSION_QUALITY = 0.7; // 压缩质量
+  private static readonly MAX_DIMENSION = 1024; // 最大尺寸
   private static readonly SUPPORTED_TYPES = [
     'image/jpeg',
     'image/jpg', 
@@ -75,7 +78,22 @@ export class ImageManager {
   static async createImageFromFile(file: File): Promise<PromptImage> {
     this.validateFile(file);
     
-    const dataUrl = await this.fileToDataUrl(file);
+    // 先转换为DataURL
+    let dataUrl = await this.fileToDataUrl(file);
+    
+    // 检查是否需要压缩
+    const base64Data = dataUrl.split(',')[1];
+    const currentSize = base64Data.length * 0.75; // base64大约比原文件大33%
+    
+    if (currentSize > this.MAX_COMPRESSED_SIZE) {
+      console.log(`图片大小 ${(currentSize / 1024).toFixed(1)}KB 超过限制，开始压缩...`);
+      dataUrl = await this.compressImage(dataUrl, this.COMPRESSION_QUALITY);
+      
+      const compressedBase64 = dataUrl.split(',')[1];
+      const compressedSize = compressedBase64.length * 0.75;
+      console.log(`压缩完成：${(currentSize / 1024).toFixed(1)}KB → ${(compressedSize / 1024).toFixed(1)}KB`);
+    }
+    
     const imageId = this.generateImageId();
     
     const promptImage: PromptImage = {
@@ -484,9 +502,9 @@ export class ImageManager {
   }
 
   /**
-   * 压缩图片（如果需要）
+   * 智能压缩图片（自动调整尺寸和质量）
    */
-  static async compressImage(dataUrl: string, quality: number = 0.8): Promise<string> {
+  static async compressImage(dataUrl: string, initialQuality: number = 0.7): Promise<string> {
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.onload = () => {
@@ -498,16 +516,56 @@ export class ImageManager {
           return;
         }
 
-        canvas.width = img.width;
-        canvas.height = img.height;
+        // 计算压缩后的尺寸
+        let { width, height } = this.calculateCompressedSize(img.width, img.height);
         
-        ctx.drawImage(img, 0, 0);
+        canvas.width = width;
+        canvas.height = height;
         
-        resolve(canvas.toDataURL('image/jpeg', quality));
+        // 绘制压缩后的图片
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // 尝试不同的压缩质量，直到达到目标大小
+        const tryCompress = (quality: number): string => {
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+          const compressedSize = compressedDataUrl.split(',')[1].length * 0.75;
+          
+          // 如果大小合适或者质量已经很低，返回结果
+          if (compressedSize <= this.MAX_COMPRESSED_SIZE || quality <= 0.1) {
+            return compressedDataUrl;
+          }
+          
+          // 降低质量继续压缩
+          return tryCompress(quality - 0.1);
+        };
+        
+        const result = tryCompress(initialQuality);
+        resolve(result);
       };
       
       img.onerror = () => reject(new Error('图片加载失败'));
       img.src = dataUrl;
     });
+  }
+
+  /**
+   * 计算压缩后的尺寸
+   */
+  private static calculateCompressedSize(originalWidth: number, originalHeight: number) {
+    let width = originalWidth;
+    let height = originalHeight;
+
+    // 如果尺寸超过限制，按比例缩放
+    if (width > this.MAX_DIMENSION || height > this.MAX_DIMENSION) {
+      if (width > height) {
+        height = (height * this.MAX_DIMENSION) / width;
+        width = this.MAX_DIMENSION;
+      } else {
+        width = (width * this.MAX_DIMENSION) / height;
+        height = this.MAX_DIMENSION;
+      }
+    }
+
+    return { width: Math.round(width), height: Math.round(height) };
   }
 }
