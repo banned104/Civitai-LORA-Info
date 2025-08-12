@@ -12,8 +12,8 @@ import SearchShortcuts from './SearchShortcuts.vue';
 import { MarkdownExporter } from './markdown_exporter';
 import { CacheManager } from './cache_manager';
 import { useI18n } from '../i18n';
-// 暂时注释掉时间管理器，确保基本功能正常
-// import { timeManager, type DayBoundaryEvent, TimeManager } from './time_manager';
+// 引入简化的时间管理器
+import { simpleTimeManager, type DateChangeEvent } from './simple_time_manager';
 
 const { t } = useI18n();
 
@@ -87,6 +87,9 @@ async function fetchModelInfo(modelUrl: string) {
         CacheManager.saveToLocalStorage(models.value);
         CacheManager.recordSingleModelToday(data);
         console.log(`✅ 新模型已保存到缓存并记录到今天: ${data.name}`);
+        
+        // 通知时间管理器新模型已添加（虽然暂时不做具体处理，但保留接口）
+        console.log(`📝 模型 ${data.name} (ID: ${data.id}) 已添加到当前会话`);
       } catch (saveError) {
         console.warn('保存到缓存失败，但模型已添加到列表:', saveError);
       }
@@ -517,6 +520,25 @@ function handleQuickAdvancedSearch(options: any) {
   }
 }
 
+// 跨天刷新处理函数
+function handleDateChange(event: DateChangeEvent) {
+  console.log(`🔄 处理日期变化: ${event.previousDate} -> ${event.currentDate}`);
+  
+  // 重新加载缓存数据，确保显示当天的模型
+  const cachedModels = CacheManager.loadFromLocalStorage();
+  if (cachedModels && cachedModels.length > 0) {
+    models.value = cachedModels;
+    console.log(`📂 跨天后重新加载了 ${cachedModels.length} 个模型`);
+  }
+  
+  // 刷新界面组件
+  nextTick(() => {
+    calendarRef.value?.refresh();
+    dataDaysGridRef.value?.refresh();
+    console.log('🔄 界面已刷新');
+  });
+}
+
 // 组件挂载时的初始化
 onMounted(() => {
   // 加载缓存模型
@@ -525,6 +547,17 @@ onMounted(() => {
     models.value = cachedModels;
     console.log(`已从缓存加载 ${cachedModels.length} 个模型`);
   }
+  
+  // 注册日期变化监听器
+  simpleTimeManager.onDateChanged(handleDateChange);
+  console.log('⏰ 已注册跨天刷新监听器');
+});
+
+// 组件卸载时的清理
+onUnmounted(() => {
+  // 移除日期变化监听器
+  simpleTimeManager.removeDateChangedCallback(handleDateChange);
+  console.log('🗑️  已移除跨天刷新监听器');
 });
 </script>
 
