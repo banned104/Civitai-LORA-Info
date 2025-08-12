@@ -36,6 +36,23 @@
         </div>
       </div>
 
+      <!-- 图片上传区域 -->
+      <div class="field-group mb-4">
+        <label class="block text-sm font-medium text-gray-900 dark:text-white mb-2">
+          📸 {{ t('promptImages') }} ({{ t('optional') }})
+        </label>
+        <ImageUpload 
+          v-model="selectedImages"
+          :disabled="isSaving"
+          @error="handleImageError"
+          @image-added="handleImageAdded"
+          @image-removed="handleImageRemoved"
+        />
+        <div v-if="selectedImages.length > 0" class="text-xs text-gray-500 mt-1">
+          已选择 {{ selectedImages.length }} 张图片
+        </div>
+      </div>
+
       <!-- 操作按钮 -->
       <div class="button-group flex gap-3">
         <button
@@ -73,14 +90,16 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { PromptCacheManager } from './prompt_cache_manager';
-import type { PromptEntry } from './prompt_types';
+import type { PromptEntry, PromptImage } from './prompt_types';
 import { useI18n } from '../../i18n';
+import ImageUpload from './ImageUpload.vue';
 
 const { t } = useI18n();
 
 // 表单状态
 const titleInput = ref('');
 const promptInput = ref('');
+const selectedImages = ref<PromptImage[]>([]);
 const isSaving = ref(false);
 
 // 事件定义
@@ -95,6 +114,20 @@ const canSave = computed(() => {
   return promptInput.value.trim().length > 0 && !isSaving.value;
 });
 
+// 图片处理函数
+const handleImageError = (error: string) => {
+  console.error('图片处理错误:', error);
+  alert(`图片处理失败: ${error}`);
+};
+
+const handleImageAdded = (image: PromptImage) => {
+  console.log('添加图片:', image.name);
+};
+
+const handleImageRemoved = (imageId: string) => {
+  console.log('移除图片:', imageId);
+};
+
 // 保存Prompt
 async function savePrompt() {
   if (!canSave.value) return;
@@ -104,7 +137,8 @@ async function savePrompt() {
   try {
     const newPrompt = PromptCacheManager.addPrompt(
       titleInput.value,
-      promptInput.value
+      promptInput.value,
+      selectedImages.value // 传递图片数组
     );
 
     // 清空表单
@@ -114,6 +148,7 @@ async function savePrompt() {
     emit('promptSaved', newPrompt);
     
     console.log('Prompt保存成功:', newPrompt);
+    console.log(`包含 ${newPrompt.images?.length || 0} 张图片`);
   } catch (error) {
     console.error('保存Prompt失败:', error);
     alert(t('savePromptFailed'));
@@ -126,6 +161,7 @@ async function savePrompt() {
 function clearForm() {
   titleInput.value = '';
   promptInput.value = '';
+  selectedImages.value = [];
 }
 
 // 快速填充示例数据（开发调试用）

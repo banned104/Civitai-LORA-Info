@@ -1,4 +1,4 @@
-import type { PromptEntry, DailyPromptRecord, PromptCacheData } from './prompt_types';
+import type { PromptEntry, DailyPromptRecord, PromptCacheData, PromptImage } from './prompt_types';
 
 /**
  * Prompt缓存管理器 - 负责Prompt数据的缓存、导出和导入
@@ -250,11 +250,12 @@ export class PromptCacheManager {
   /**
    * 添加新的Prompt
    */
-  static addPrompt(title: string, prompt: string): PromptEntry {
+  static addPrompt(title: string, prompt: string, images?: PromptImage[]): PromptEntry {
     const newPrompt: PromptEntry = {
       id: this.generateId(),
       title: title.trim() || undefined,
       prompt: prompt.trim(),
+      images: images && images.length > 0 ? [...images] : undefined,
       createdAt: Date.now(),
       updatedAt: Date.now()
     };

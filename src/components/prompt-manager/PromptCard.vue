@@ -48,6 +48,32 @@
         <pre class="prompt-text">{{ prompt.prompt }}</pre>
       </div>
       
+      <!-- 图片显示区域 -->
+      <div v-if="prompt.images && prompt.images.length > 0" class="images-section">
+        <div class="images-header">
+          <span class="images-count">📸 {{ prompt.images.length }} 张图片</span>
+        </div>
+        <div class="images-grid">
+          <div 
+            v-for="image in prompt.images" 
+            :key="image.id"
+            class="image-item"
+            @click="openImagePreview(image)"
+          >
+            <img 
+              :src="getImageDisplayUrl(image)" 
+              :alt="image.name"
+              class="prompt-image"
+              @error="handleImageError"
+            />
+            <div class="image-overlay">
+              <span class="image-name">{{ truncateImageName(image.name) }}</span>
+              <span class="image-size">{{ formatFileSize(image.size) }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
       <!-- 标签显示 -->
       <div class="tags-section" v-if="promptTags.length > 0">
         <div class="tags-container">
@@ -106,8 +132,9 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import type { PromptEntry } from './prompt_types';
+import type { PromptEntry, PromptImage } from './prompt_types';
 import { PromptCacheManager } from './prompt_cache_manager';
+import { ImageManager } from './image_manager';
 import { useI18n } from '../../i18n';
 
 const { t } = useI18n();
@@ -203,8 +230,18 @@ function cancelEdit() {
 }
 
 // 删除Prompt
-function deletePrompt() {
+async function deletePrompt() {
   if (confirm(t('deletePromptConfirm'))) {
+    // 先删除关联的图片文件
+    if (props.prompt.images && props.prompt.images.length > 0) {
+      try {
+        await ImageManager.deleteImages(props.prompt.images);
+        console.log(`已删除 ${props.prompt.images.length} 张关联图片`);
+      } catch (error) {
+        console.warn('删除关联图片失败:', error);
+      }
+    }
+    
     const success = PromptCacheManager.deletePrompt(props.prompt.id);
     if (success) {
       emit('promptDeleted', props.prompt.id);
@@ -217,6 +254,62 @@ function deletePrompt() {
 // 切换显示所有标签
 function toggleShowAllTags() {
   showAllTags.value = !showAllTags.value;
+}
+
+// 图片处理函数
+function getImageDisplayUrl(image: PromptImage): string {
+  return ImageManager.getImageDisplayUrl(image);
+}
+
+function truncateImageName(name: string, maxLength: number = 15): string {
+  if (name.length <= maxLength) return name;
+  const ext = name.split('.').pop();
+  const nameWithoutExt = name.substring(0, name.lastIndexOf('.'));
+  const truncated = nameWithoutExt.substring(0, maxLength - ext!.length - 4) + '...';
+  return `${truncated}.${ext}`;
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function handleImageError(e: Event) {
+  console.error('图片加载失败:', e);
+  const img = e.target as HTMLImageElement;
+  img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjI0IiBoZWlnaHQ9IjI0IiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0xMiA5VjE1IiBzdHJva2U9IiM5Q0EzQUYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+CjxwYXRoIGQ9Ik05IDEySDEzIiBzdHJva2U9IiM5Q0EzQUYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+Cjwvc3ZnPgo='; // 默认错误图片
+}
+
+function openImagePreview(image: PromptImage) {
+  // 创建模态框显示大图
+  const modal = document.createElement('div');
+  modal.className = 'image-modal';
+  modal.innerHTML = `
+    <div class="modal-overlay" onclick="this.parentElement.remove()">
+      <div class="modal-content" onclick="event.stopPropagation()">
+        <img src="${getImageDisplayUrl(image)}" alt="${image.name}" class="modal-image" />
+        <div class="modal-info">
+          <h3>${image.name}</h3>
+          <p>大小: ${formatFileSize(image.size)}</p>
+          <p>类型: ${image.type}</p>
+        </div>
+        <button onclick="this.parentElement.parentElement.remove()" class="modal-close">✕</button>
+      </div>
+    </div>
+  `;
+  
+  // 添加样式
+  modal.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1000;
+  `;
+  
+  document.body.appendChild(modal);
 }
 </script>
 
@@ -358,6 +451,87 @@ function toggleShowAllTags() {
 
 :global(.dark) .prompt-text {
   color: rgb(229, 231, 235);
+}
+
+/* 图片样式 */
+.images-section {
+  margin: 1rem 0;
+  padding: 1rem;
+  background: rgb(249, 250, 251);
+  border-radius: 8px;
+}
+
+:global(.dark) .images-section {
+  background: rgb(31, 41, 55);
+}
+
+.images-header {
+  margin-bottom: 0.75rem;
+}
+
+.images-count {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: rgb(75, 85, 99);
+}
+
+:global(.dark) .images-count {
+  color: rgb(156, 163, 175);
+}
+
+.images-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 0.75rem;
+}
+
+.image-item {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.image-item:hover {
+  transform: scale(1.05);
+}
+
+.prompt-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.image-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+  color: white;
+  padding: 0.5rem 0.25rem 0.25rem;
+  font-size: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.image-item:hover .image-overlay {
+  opacity: 1;
+}
+
+.image-name {
+  font-weight: 500;
+  margin-bottom: 0.125rem;
+}
+
+.image-size {
+  font-size: 0.625rem;
+  opacity: 0.8;
 }
 
 .tags-section {
@@ -518,5 +692,99 @@ function toggleShowAllTags() {
   .edit-actions {
     flex-direction: column;
   }
+}
+
+/* 图片模态框样式 */
+:global(.image-modal) {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+}
+
+:global(.modal-overlay) {
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+:global(.modal-content) {
+  position: relative;
+  background: white;
+  border-radius: 12px;
+  max-width: 90vw;
+  max-height: 90vh;
+  overflow: hidden;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+:global(.dark .modal-content) {
+  background: rgb(17, 24, 39);
+}
+
+:global(.modal-image) {
+  width: 100%;
+  height: auto;
+  max-height: 70vh;
+  object-fit: contain;
+  display: block;
+}
+
+:global(.modal-info) {
+  padding: 1.5rem;
+  border-top: 1px solid rgb(229, 231, 235);
+}
+
+:global(.dark .modal-info) {
+  border-top-color: rgb(55, 65, 81);
+}
+
+:global(.modal-info h3) {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: rgb(17, 24, 39);
+}
+
+:global(.dark .modal-info h3) {
+  color: rgb(229, 231, 235);
+}
+
+:global(.modal-info p) {
+  margin: 0.25rem 0;
+  font-size: 0.875rem;
+  color: rgb(75, 85, 99);
+}
+
+:global(.dark .modal-info p) {
+  color: rgb(156, 163, 175);
+}
+
+:global(.modal-close) {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  font-size: 1.25rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease;
+}
+
+:global(.modal-close:hover) {
+  background: rgba(0, 0, 0, 0.7);
 }
 </style>
