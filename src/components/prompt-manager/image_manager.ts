@@ -92,8 +92,10 @@ export class ImageManager {
       try {
         const localPath = await this.saveImageToLocal(imageId, dataUrl, file.name);
         promptImage.localPath = localPath;
+        console.log(`图片已保存到本地: ${localPath}`);
       } catch (error) {
-        console.warn('保存图片到本地失败，使用内存存储:', error);
+        console.warn('保存图片到本地失败，继续使用内存存储:', error);
+        // 不抛出错误，继续使用DataURL
       }
     }
 
@@ -168,6 +170,16 @@ export class ImageManager {
     const binaryData = atob(base64Data);
     const size = binaryData.length;
 
+    // 验证文件大小
+    if (size > this.MAX_FILE_SIZE) {
+      throw new Error(`文件过大: ${(size / 1024 / 1024).toFixed(2)}MB。最大支持: ${this.MAX_FILE_SIZE / 1024 / 1024}MB`);
+    }
+
+    // 验证文件类型
+    if (!this.SUPPORTED_TYPES.includes(type)) {
+      throw new Error(`不支持的图片格式: ${type}。支持的格式: ${this.SUPPORTED_TYPES.join(', ')}`);
+    }
+
     const imageId = this.generateImageId();
 
     const promptImage: PromptImage = {
@@ -184,8 +196,10 @@ export class ImageManager {
       try {
         const localPath = await this.saveImageToLocal(imageId, dataUrl, fileName);
         promptImage.localPath = localPath;
+        console.log(`图片已保存到本地: ${localPath}`);
       } catch (error) {
-        console.warn('保存图片到本地失败，使用内存存储:', error);
+        console.warn('保存图片到本地失败，继续使用内存存储:', error);
+        // 不抛出错误，继续使用DataURL
       }
     }
 
@@ -312,7 +326,7 @@ export class ImageManager {
    * 生成图片ID
    */
   private static generateImageId(): string {
-    return `img_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return `img_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${Math.floor(Math.random() * 10000)}`;
   }
 
   /**
@@ -349,25 +363,41 @@ export class ImageManager {
         throw new Error('Tauri API不可用');
       }
 
-      const { appDir, join, resolve } = pathApi;
+      const { appDir, join, resolve, dirname } = pathApi;
       const { createDir, writeBinaryFile, exists } = fsApi;
       
-      // 尝试使用当前工作目录，如果失败则使用应用程序目录
+      // 尝试多种路径策略
       let baseDir;
-      try {
-        // 首先尝试获取当前工作目录
-        baseDir = await resolve('./');
-      } catch {
-        // 如果失败，使用应用程序目录
-        baseDir = await appDir();
-      }
+      let userImageDir;
       
-      const userImageDir = await join(baseDir, 'user_images');
+      try {
+        // 策略1: 尝试获取当前可执行文件的目录
+        const currentExe = await resolve('./');
+        baseDir = await dirname(currentExe);
+        userImageDir = await join(baseDir, 'user_images');
+        console.log('策略1 - 可执行文件目录:', userImageDir);
+      } catch (error1) {
+        try {
+          // 策略2: 使用应用程序目录
+          baseDir = await appDir();
+          userImageDir = await join(baseDir, 'user_images');
+          console.log('策略2 - 应用程序目录:', userImageDir);
+        } catch (error2) {
+          try {
+            // 策略3: 使用相对路径
+            userImageDir = await resolve('./user_images');
+            console.log('策略3 - 相对路径:', userImageDir);
+          } catch (error3) {
+            throw new Error(`所有路径策略失败: ${error1}, ${error2}, ${error3}`);
+          }
+        }
+      }
       
       // 确保目录存在
       const dirExists = await exists(userImageDir);
       if (!dirExists) {
         await createDir(userImageDir, { recursive: true });
+        console.log('创建目录:', userImageDir);
       }
       
       // 生成文件名
@@ -437,8 +467,16 @@ export class ImageManager {
   static getImageDisplayUrl(image: PromptImage): string {
     // 在Tauri环境下，如果有本地路径，尝试使用本地路径
     if (this.isTauriEnv() && image.localPath) {
-      // Tauri可以直接使用文件路径
-      return `asset://localhost/${image.localPath}`;
+      try {
+        // 在Tauri中，可以使用convertFileSrc来转换文件路径
+        if (window.__TAURI__ && window.__TAURI__.tauri && window.__TAURI__.tauri.convertFileSrc) {
+          return window.__TAURI__.tauri.convertFileSrc(image.localPath);
+        }
+        // 如果convertFileSrc不可用，使用asset协议
+        return `asset://localhost/${image.localPath.replace(/\\/g, '/')}`;
+      } catch (error) {
+        console.warn('无法转换本地文件路径，使用DataURL:', error);
+      }
     }
     
     // 否则使用DataURL

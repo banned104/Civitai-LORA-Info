@@ -147,12 +147,15 @@ const setupTauriFileDropListener = async () => {
   try {
     const tauri = window.__TAURI__
     if (tauri && tauri.event) {
+      console.log('设置Tauri文件拖拽监听器...')
+      
       // 监听文件拖拽事件
       unlistenFileDrop = await tauri.event.listen('tauri://file-drop', async (event: any) => {
         if (props.disabled) return
         
+        console.log('Tauri文件拖拽事件:', event)
         const filePaths = event.payload as string[]
-        console.log('Tauri文件拖拽:', filePaths)
+        console.log('拖拽的文件路径:', filePaths)
         
         // 过滤出图片文件
         const imageFiles = filePaths.filter(path => {
@@ -160,22 +163,32 @@ const setupTauriFileDropListener = async () => {
           return ext && ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(ext)
         })
         
+        console.log('筛选出的图片文件:', imageFiles)
+        
         if (imageFiles.length > 0) {
           await processTauriDroppedFiles(imageFiles)
+        } else {
+          console.warn('没有找到有效的图片文件')
         }
       })
       
       // 监听拖拽进入事件
-      await tauri.event.listen('tauri://file-drop-hover', () => {
+      await tauri.event.listen('tauri://file-drop-hover', (event: any) => {
         if (!props.disabled) {
+          console.log('文件拖拽悬停')
           isDragOver.value = true
         }
       })
       
       // 监听拖拽离开事件
-      await tauri.event.listen('tauri://file-drop-cancelled', () => {
+      await tauri.event.listen('tauri://file-drop-cancelled', (event: any) => {
+        console.log('文件拖拽取消')
         isDragOver.value = false
       })
+      
+      console.log('Tauri文件拖拽监听器设置完成')
+    } else {
+      console.warn('Tauri事件API不可用')
     }
   } catch (error) {
     console.warn('设置Tauri文件拖拽监听失败:', error)
@@ -189,28 +202,52 @@ const processTauriDroppedFiles = async (filePaths: string[]) => {
   isDragOver.value = false
 
   try {
+    console.log('开始处理Tauri拖拽的文件:', filePaths)
     const newImages: PromptImage[] = []
+    
+    const tauri = window.__TAURI__
+    if (!tauri || !tauri.fs) {
+      throw new Error('Tauri文件系统API不可用')
+    }
     
     for (const filePath of filePaths) {
       try {
+        console.log('读取文件:', filePath)
+        
         // 使用Tauri的fs API读取文件
-        const tauri = window.__TAURI__
-        if (tauri && tauri.fs) {
-          const fileData = await tauri.fs.readBinaryFile(filePath)
-          const fileName = filePath.split(/[/\\]/).pop() || 'unknown'
-          const ext = fileName.toLowerCase().split('.').pop()
-          const mimeType = ext ? `image/${ext === 'jpg' ? 'jpeg' : ext}` : 'image/jpeg'
-          
-          // 转换为base64 DataURL
-          const base64 = btoa(String.fromCharCode(...new Uint8Array(fileData)))
-          const dataUrl = `data:${mimeType};base64,${base64}`
-          
-          // 创建图片对象
-          const image = await ImageManager.createImageFromDataUrl(dataUrl, fileName)
-          newImages.push(image)
+        const fileData = await tauri.fs.readBinaryFile(filePath)
+        console.log('文件读取成功，大小:', fileData.length)
+        
+        const fileName = filePath.split(/[/\\]/).pop() || 'unknown'
+        const ext = fileName.toLowerCase().split('.').pop()
+        
+        // 验证文件扩展名
+        if (!ext || !['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(ext)) {
+          console.warn('不支持的文件格式:', fileName)
+          continue
         }
+        
+        const mimeType = ext === 'jpg' ? 'image/jpeg' : `image/${ext}`
+        
+        // 验证文件大小（10MB限制）
+        if (fileData.length > 10 * 1024 * 1024) {
+          throw new Error(`文件 ${fileName} 过大，超过10MB限制`)
+        }
+        
+        // 转换为base64 DataURL
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(fileData)))
+        const dataUrl = `data:${mimeType};base64,${base64}`
+        
+        console.log('DataURL生成成功，长度:', dataUrl.length)
+        
+        // 创建图片对象
+        const image = await ImageManager.createImageFromDataUrl(dataUrl, fileName)
+        newImages.push(image)
+        
+        console.log('图片处理完成:', image.name, image.id)
       } catch (err) {
         console.error(`处理文件 ${filePath} 失败:`, err)
+        throw new Error(`处理文件 ${filePath.split(/[/\\]/).pop()} 失败: ${err instanceof Error ? err.message : '未知错误'}`)
       }
     }
     
@@ -223,9 +260,12 @@ const processTauriDroppedFiles = async (filePaths: string[]) => {
         emit('image-added', image)
       })
       
-      console.log(`成功添加 ${newImages.length} 张图片`)
+      console.log(`Tauri拖拽处理完成，成功添加 ${newImages.length} 张图片`)
+    } else {
+      throw new Error('没有成功处理任何图片文件')
     }
   } catch (err: any) {
+    console.error('处理Tauri拖拽文件失败:', err)
     error.value = err.message || '处理拖拽文件失败'
     emit('error', error.value)
   } finally {
