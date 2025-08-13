@@ -292,19 +292,27 @@ ${dailyRecords.map(record =>
   static async importFromJson(file: File): Promise<LoraModel[]> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      
+
       reader.onload = (event) => {
         try {
           const jsonString = event.target?.result as string;
-          const cacheData: CacheData = JSON.parse(jsonString);
-          
-          // 验证导入的数据
-          if (!this.validateCacheData(cacheData)) {
-            reject(new Error('导入的文件格式无效或版本不兼容'));
+          const raw = JSON.parse(jsonString);
+
+          // 统一解析不同导出格式，提取模型数组
+          const models = this.extractModelsFromImport(raw);
+
+          if (!models || !Array.isArray(models) || models.length === 0) {
+            reject(new Error('导入的文件中没有找到模型数据'));
             return;
           }
 
-          resolve(cacheData.models);
+          // 验证模型结构
+          if (!this.validateModelsData(models)) {
+            reject(new Error('模型数据结构不正确'));
+            return;
+          }
+
+          resolve(models as LoraModel[]);
         } catch (error) {
           console.error('解析JSON文件失败:', error);
           reject(new Error('JSON文件格式错误'));
@@ -317,6 +325,50 @@ ${dailyRecords.map(record =>
 
       reader.readAsText(file);
     });
+  }
+
+  /**
+   * 兼容导入不同导出格式，提取模型数组
+   * 支持：
+   * - 完整缓存导出（CacheData）：{ version, timestamp, models, dailyRecords, metadata }
+   * - 单日导出（models_YYYY-MM-DD.json）：{ date, timestamp, modelCount, models, metadata }
+   * - 汇总导出（summary.json）：{ exportInfo, dailySummary, allModels }
+   * - 纯数组：[ LoraModel, ... ]
+   */
+  private static extractModelsFromImport(raw: any): LoraModel[] | null {
+    try {
+      // 1) 纯数组
+      if (Array.isArray(raw)) {
+        return raw as LoraModel[];
+      }
+
+      if (!raw || typeof raw !== 'object') return null;
+
+      // 2) 完整缓存导出（宽松校验，不强制版本匹配）
+      if (Array.isArray((raw as any).models) && typeof (raw as any).timestamp === 'number') {
+        return (raw as any).models as LoraModel[];
+      }
+
+      // 3) 单日导出
+      if (typeof (raw as any).date === 'string' && Array.isArray((raw as any).models)) {
+        return (raw as any).models as LoraModel[];
+      }
+
+      // 4) 汇总导出
+      if (Array.isArray((raw as any).allModels)) {
+        return (raw as any).allModels as LoraModel[];
+      }
+
+      // 5) 退化：对象里存在 models 数组
+      if (Array.isArray((raw as any).models)) {
+        return (raw as any).models as LoraModel[];
+      }
+
+      return null;
+    } catch (e) {
+      console.error('extractModelsFromImport 失败:', e);
+      return null;
+    }
   }
 
   /**
